@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#080a14" />
+  <meta name="description" content="JoyStream AI: analítica del canal Joysantalola, clips, VOD, comunidad y asistente local." />
+  <title>JoyStream AI · Creator Analytics</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#resumen" aria-label="JoyStream AI, ir al resumen">
+        <span class="brand-mark">J</span>
+        <span><strong>JoyStream <span class="brand-accent">AI</span></strong><small>CREATOR STUDIO · v2.2</small></span>
+      </a>
+      <div class="channel-mini"><span class="avatar">JS</span><span><b>Joysantalola</b><small>@joysantalola67</small></span><span class="green-dot"></span></div>
+      <div class="nav-label">ANALÍTICA</div>
+      <nav aria-label="Navegación principal" class="nav">
+        <button data-page="resumen" class="nav-item active"><span>◫</span> Resumen</button>
+        <button data-page="clips" class="nav-item"><span>▣</span> Clips</button>
+        <button data-page="vod" class="nav-item"><span>▸</span> Vídeos / VOD</button>
+        <button data-page="directos" class="nav-item"><span>◉</span> Directos</button>
+        <button data-page="comunidad" class="nav-item"><span>♧</span> Comunidad</button>
+        <div class="nav-label sub-label">HERRAMIENTAS</div>
+        <button data-page="ia" class="nav-item"><span>✦</span> Asistente IA <em>LOCAL</em></button>
+        <button data-page="anuncios" class="nav-item"><span>◷</span> Publicidad</button>
+        <button data-page="sistema" class="nav-item"><span>⚙</span> Sistema</button>
+      </nav>
+      <div class="sidebar-bottom"><div class="status-panel"><span id="backend-dot" class="status-light"></span><span id="backend-label">Comprobando backend...</span></div><p>IA privada · Ollama · Docker</p><a href="https://www.twitch.tv/joysantalola67" target="_blank" rel="noopener noreferrer">Abrir canal en Twitch ↗</a></div>
+    </aside>
+    <div class="main-area">
+      <header class="topbar"><button id="mobile-menu" class="menu-button" aria-label="Abrir menú">☰</button><div class="breadcrumb">J O Y S T R E A M <span>/</span> <b id="crumb">RESUMEN</b></div><div class="top-actions"><span class="privacy-label"><span class="live-indicator"></span> PRIVADO · LOCAL</span><button class="btn btn-secondary compact-btn" id="density-btn" title="Alternar tablas compactas" aria-pressed="false">☷ <span>Vista compacta</span></button><button class="btn btn-secondary" id="reload-btn">↻ Actualizar</button><button class="btn btn-primary" id="sync-btn">⟳ Sincronizar Twitch</button></div></header>
+      <main id="page-root" tabindex="-1" aria-live="polite"><div class="loading">Cargando estadísticas...</div></main>
+      <footer class="footer"><span>✦ JoyStream AI</span> Hecho para Joysantalola <span>·</span> Analítica desde PostgreSQL <span>·</span> IA local con Ollama</footer>
+    </div>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="overlay" class="overlay" hidden></div>
+</body>
+</html>
