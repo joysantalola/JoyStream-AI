@@ -1,788 +1,401 @@
+"""JoyStream AI · Dashboard multipágina (Paso 18).
+
+Ejecutar dentro del servicio dashboard de Docker Compose.
+Requiere FastAPI accesible mediante API_URL.
+"""
 
 import os
+from datetime import datetime
 
 import pandas as pd
 import requests
 import streamlit as st
 
-
-# CONFIGURACIÓN
-API_URL = os.getenv("API_URL", "http://backend:8000")
+API_URL = os.getenv("API_URL", "http://backend:8000").rstrip("/")
+CHANNEL_URL = "https://www.twitch.tv/joysantalola67"
 
 st.set_page_config(
-    page_title="JoyStream AI",
+    page_title="JoyStream AI | Analytics",
     page_icon="🎮",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# CSS ligero: no depende de temas ni estilos internos inestables.
+st.markdown(
+    """
+    <style>
+      .block-container {max-width: 1450px; padding-top: 1.7rem;}
+      h1 {letter-spacing: -.035em;}
+      div[data-testid="stMetric"] {padding: 14px; border-radius: 13px; border: 1px solid rgba(120,120,120,.24);}
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 
-# FUNCIONES
-
-def get_data(endpoint):
-    """Consulta un endpoint de nuestro backend."""
-    response = requests.get(
-        f"{API_URL}{endpoint}",
-        timeout=15
-    )
-    response.raise_for_status()
-    return response.json()
-
-
-def sync_data():
-    """Solicita actualizar vídeos y clips."""
-    response = requests.post(
-        f"{API_URL}/sync",
-        timeout=60
-    )
-    response.raise_for_status()
-    return response.json()
-
-
-# CABECERA
-st.title("🎮 JoyStream AI")
-st.caption("Dashboard de analítica de Twitch")
-
-st.sidebar.header("Joysantalola")
-st.sidebar.write("Canal: joysantalola67")
-
-if st.sidebar.button("🔄 Sincronizar Twitch"):
+def api_get(path, timeout=20):
+    """Devuelve JSON o informa del error sin romper el dashboard."""
     try:
-        with st.spinner("Consultando Twitch..."):
-            result = sync_data()
-
-        st.sidebar.success(
-            f"Sincronizados: "
-            f"{result['videos_processed']} vídeos y "
-            f"{result['clips_processed']} clips"
-        )
-    except requests.RequestException as error:
-        st.sidebar.error(
-            f"Error de sincronización: {error}"
-        )
-
-
-# CARGAR DATOS
-try:
-    videos = get_data("/db/videos")
-    clips = get_data("/db/clips")
-except requests.RequestException as error:
-    st.error(f"No se pudo conectar con FastAPI: {error}")
-    st.stop()
-
-
-# CONVERTIR JSON EN DATAFRAMES
-df_videos = pd.DataFrame(videos)
-df_clips = pd.DataFrame(clips)
-
-
-# ESTADÍSTICAS
-total_videos = len(df_videos)
-total_clips = len(df_clips)
-
-views_videos = (
-    int(df_videos["view_count"].fillna(0).sum())
-    if "view_count" in df_videos.columns else 0
-)
-
-views_clips = (
-    int(df_clips["view_count"].fillna(0).sum())
-    if "view_count" in df_clips.columns else 0
-)
-
-
-# TARJETAS DE MÉTRICAS
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric("📹 VOD guardados", total_videos)
-col2.metric("🎬 Clips guardados", total_clips)
-col3.metric("👀 Vistas VOD", f"{views_videos:,}")
-col4.metric("🔥 Vistas clips", f"{views_clips:,}")
-
-
-st.divider()
-
-
-# ANÁLISIS ADICIONAL DE CLIPS
-
-st.divider()
-st.header("🎯 Rendimiento del contenido")
-
-if not df_clips.empty:
-
-    clips_100 = len(
-        df_clips[df_clips["view_count"] >= 100]
-    )
-
-    average_views = df_clips["view_count"].mean()
-
-    best_clip = df_clips.loc[
-        df_clips["view_count"].idxmax()
-    ]
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Clips con 100+ vistas",
-        clips_100
-    )
-
-    col2.metric(
-        "Media de vistas por clip",
-        f"{average_views:.1f}"
-    )
-
-    col3.metric(
-        "Máximo de vistas",
-        int(best_clip["view_count"])
-    )
-
-    st.info(
-        f"🏆 Tu clip más visto: {best_clip['title']}"
-    )
-
-else:
-    st.info("No hay clips para analizar.")
-
-
-# GRÁFICOS
-st.header("📊 Análisis de clips")
-
-if not df_clips.empty:
-
-    # Mostramos los diez clips más vistos
-    top_clips = (
-        df_clips.sort_values(
-            "view_count",
-            ascending=False
-        )
-        .head(10)
-        .copy()
-    )
-
-    # Etiquetas únicas para evitar títulos repetidos
-    top_clips["label"] = (
-        top_clips["title"].str.slice(0, 35)
-        + " · "
-        + top_clips["id"].str.slice(0, 6)
-    )
-
-    st.subheader("Top 10 clips más vistos")
-
-    st.bar_chart(
-        top_clips,
-        x="label",
-        y="view_count"
-    )
-
-    st.subheader("Filtrar por juego")
-
-    games = sorted(
-        df_clips["game_id"].dropna().unique().tolist()
-    )
-
-    selected_game = st.selectbox(
-        "Selecciona un juego (Game ID)",
-        ["Todos"] + games
-    )
-
-    if selected_game == "Todos":
-        filtered_clips = df_clips
-    else:
-        filtered_clips = df_clips[
-            df_clips["game_id"] == selected_game
-        ]
-
-    st.dataframe(
-        filtered_clips[
-            [
-                "title",
-                "created_at",
-                "view_count",
-                "duration",
-                "game_id",
-                "url"
-            ]
-        ],
-        hide_index=True
-    )
-
-else:
-    st.info("Todavía no hay clips guardados.")
-
-
-st.divider()
-
-
-# ANÁLISIS DE VÍDEOS
-st.header("📹 Análisis de directos guardados")
-
-if not df_videos.empty:
-
-    st.subheader("Visualizaciones por VOD")
-
-    st.bar_chart(
-        df_videos.sort_values("created_at"),
-        x="created_at",
-        y="view_count"
-    )
-
-    st.subheader("Historial de VOD")
-
-    st.dataframe(
-        df_videos[
-            [
-                "title",
-                "created_at",
-                "duration",
-                "view_count",
-                "url"
-            ]
-        ],
-        hide_index=True
-    )
-
-else:
-    st.info("Todavía no hay VOD guardados.")
-
-
-st.divider()
-
-st.caption("JoyStream AI · Proyecto personal de AI Engineering")
-
-
-# HISTORIAL DE CRECIMIENTO
-
-st.divider()
-st.header("📈 Evolución de visualizaciones")
-
-try:
-    history = get_data("/history/clips")
-    growth = get_data("/growth/clips")
-
-except requests.RequestException as error:
-    st.error(f"Error al cargar historial: {error}")
-    st.stop()
-
-
-df_history = pd.DataFrame(history)
-df_growth = pd.DataFrame(growth)
-
-
-if not df_history.empty:
-
-    # Convertimos la fecha a formato datetime
-    df_history["captured_at"] = pd.to_datetime(
-        df_history["captured_at"],
-        utc=True
-    )
-
-    st.subheader("Crecimiento por clip")
-
-    if not df_clips.empty:
-        # Relacionamos los IDs con sus títulos
-        clip_names = dict(
-            zip(df_clips["id"], df_clips["title"])
-        )
-    else:
-        clip_names = {}
-
-    available_ids = (
-        df_history["content_id"]
-        .drop_duplicates()
-        .tolist()
-    )
-
-    selected_id = st.selectbox(
-        "Selecciona el clip",
-        available_ids,
-        format_func=lambda clip_id: (
-            clip_names.get(clip_id, clip_id)
-        )
-    )
-
-    selected_history = df_history[
-        df_history["content_id"] == selected_id
-    ].sort_values("captured_at")
-
-    st.line_chart(
-        selected_history,
-        x="captured_at",
-        y="view_count"
-    )
-
-    # Calculamos el crecimiento del clip
-    first_views = int(
-        selected_history.iloc[0]["view_count"]
-    )
-
-    last_views = int(
-        selected_history.iloc[-1]["view_count"]
-    )
-
-    difference = last_views - first_views
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Primera medición", first_views)
-    col2.metric("Última medición", last_views)
-    col3.metric(
-        "Crecimiento",
-        difference,
-        delta=difference,
-        delta_color="off"
-    )
-
-    st.caption(
-        "Crecimiento desde la primera medición "
-        "almacenada, no necesariamente desde "
-        "la creación del clip."
-    )
-
-    st.subheader("Ranking de crecimiento")
-
-    if not df_growth.empty:
-        df_growth["clip"] = df_growth[
-            "content_id"
-        ].map(
-            lambda clip_id: clip_names.get(
-                clip_id, clip_id
-            )
-        )
-
-        st.dataframe(
-            df_growth[
-                [
-                    "clip",
-                    "first_views",
-                    "last_views",
-                    "growth",
-                    "growth_percent",
-                    "measurements"
-                ]
-            ],
-            hide_index=True
-        )
-
-else:
-    st.info(
-        "Todavía no hay historial. "
-        "Pulsa Sincronizar Twitch para "
-        "registrar la primera medición."
-    )
-
-
-# MONITORIZACIÓN DE DIRECTOS
-
-st.divider()
-st.header("🔴 Monitorización de directos")
-
-try:
-    live = get_data("/twitch/live")
-    samples = get_data("/streams/history")
-
-except requests.RequestException as error:
-    st.error(
-        f"No se pudieron cargar los directos: {error}"
-    )
-    st.stop()
-
-
-# ESTADO ACTUAL
-if live["is_live"]:
-
-    current = live["stream"]
-
-    st.success(
-        f"🔴 EN DIRECTO | "
-        f"{current['game_name']} | "
-        f"{current['viewer_count']} espectadores"
-    )
-
-    st.write(f"**Título:** {current['title']}")
-
-else:
-    st.info("⚫ Joysantalola está offline.")
-
-
-# HISTORIAL DE DIRECTOS
-df_streams = pd.DataFrame(samples)
-
-if not df_streams.empty:
-
-    df_streams["captured_at"] = pd.to_datetime(
-        df_streams["captured_at"],
-        utc=True
-    )
-
-    df_streams["started_at"] = pd.to_datetime(
-        df_streams["started_at"],
-        utc=True
-    )
-
-    # Cada stream_id representa un directo distinto
-    sessions = (
-        df_streams.sort_values("started_at")
-        .drop_duplicates("stream_id", keep="last")
-        .sort_values("started_at", ascending=False)
-    )
-
-    session_ids = sessions["stream_id"].tolist()
-
-    labels = {
-        row["stream_id"]: (
-            f"{row['started_at']:%d/%m/%Y %H:%M} UTC"
-            f" · {row['game_name']}"
-        )
-        for _, row in sessions.iterrows()
-    }
-
-    selected_stream = st.selectbox(
-        "Selecciona un directo",
-        session_ids,
-        format_func=lambda stream_id: labels[stream_id]
-    )
-
-    selected = (
-        df_streams[
-            df_streams["stream_id"] == selected_stream
-        ]
-        .sort_values("captured_at")
-    )
-
-    # Estadísticas de la sesión
-    peak = int(selected["viewer_count"].max())
-    average = selected["viewer_count"].mean()
-    last = int(selected.iloc[-1]["viewer_count"])
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Pico observado", peak)
-    col2.metric("Media de muestras", f"{average:.1f}")
-    col3.metric("Última muestra", last)
-
-    st.subheader("📈 Evolución de espectadores")
-
-    st.line_chart(
-        selected,
-        x="captured_at",
-        y="viewer_count"
-    )
-
-    st.subheader("🎮 Categorías del directo")
-
-    game_stats = (
-        selected.groupby("game_name", dropna=False)
-        .agg(
-            viewers_mean=("viewer_count", "mean"),
-            viewers_peak=("viewer_count", "max"),
-            measurements=("viewer_count", "count")
-        )
-        .reset_index()
-    )
-
-    st.dataframe(
-        game_stats,
-        hide_index=True
-    )
-
-    st.caption(
-        "Los resultados representan muestras "
-        "recogidas por JoyStream AI, "
-        "no métricas oficiales agregadas de Twitch."
-    )
-
-else:
-    st.info(
-        "Todavía no hay mediciones históricas. "
-        "Se guardarán automáticamente cuando "
-        "el canal esté en directo."
-    )
-
-
-# COMPARATIVA DE DIRECTOS Y VIDEOJUEGOS
-
-st.divider()
-st.header("🎮 Comparativa de directos")
-
-try:
-    sessions_data = get_data("/analytics/sessions")
-    games_data = get_data("/analytics/games")
-
-except requests.RequestException as error:
-    st.error(f"Error cargando analítica: {error}")
-    st.stop()
-
-
-df_sessions = pd.DataFrame(sessions_data)
-df_games = pd.DataFrame(games_data)
-
-
-# RESUMEN GENERAL
-
-if not df_sessions.empty:
-
-    total_sessions = len(df_sessions)
-
-    highest_peak = int(
-        df_sessions["peak_viewers"].max()
-    )
-
-    total_samples = int(
-        df_sessions["measurements"].sum()
-    )
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Directos monitorizados",
-        total_sessions
-    )
-
-    col2.metric(
-        "Mayor pico observado",
-        highest_peak
-    )
-
-    col3.metric(
-        "Muestras recogidas",
-        total_samples
-    )
-
-    st.subheader("📅 Rendimiento por directo")
-
-    # Convertimos fechas al tipo datetime
-    df_sessions["started_at"] = pd.to_datetime(
-        df_sessions["started_at"],
-        utc=True
-    )
-
-    df_sessions["session_label"] = (
-        df_sessions["started_at"].dt.strftime(
-            "%d/%m/%Y %H:%M UTC"
-        )
-        + " · "
-        + df_sessions["stream_id"].str.slice(-6)
-    )
-
-    # Orden cronológico
-    df_sessions = df_sessions.sort_values(
-        "started_at"
-    )
-
-    metric = st.radio(
-        "¿Qué quieres comparar?",
-        [
-            "Pico de espectadores",
-            "Media de espectadores"
-        ],
-        horizontal=True
-    )
-
-    if metric == "Pico de espectadores":
-        column = "peak_viewers"
-    else:
-        column = "average_viewers"
-
-    st.bar_chart(
-        df_sessions,
-        x="session_label",
-        y=column
-    )
-
-    st.subheader("📋 Tabla de directos")
-
-    st.dataframe(
-        df_sessions[
-            [
-                "session_label",
-                "games_label",
-                "average_viewers",
-                "peak_viewers",
-                "measurements",
-                "observed_minutes"
-            ]
-        ],
-        hide_index=True
-    )
-
-else:
-    st.info(
-        "Todavía no hay directos monitorizados."
-    )
-
-
-# COMPARATIVA DE JUEGOS
-
-st.divider()
-st.header("🏆 Comparativa por videojuego")
-
-if not df_games.empty:
-
-    st.subheader("Media observada por categoría")
-
-    st.bar_chart(
-        df_games,
-        x="game_name",
-        y="average_viewers"
-    )
-
-    st.subheader("Pico observado por categoría")
-
-    st.bar_chart(
-        df_games,
-        x="game_name",
-        y="peak_viewers"
-    )
-
-    st.subheader("Estadísticas completas")
-
-    st.dataframe(
-        df_games[
-            [
-                "game_name",
-                "sessions",
-                "measurements",
-                "average_viewers",
-                "peak_viewers",
-                "min_viewers"
-            ]
-        ],
-        hide_index=True
-    )
-
-    # Comparación concreta: Rocket League vs Fortnite
-    rocket = df_games[
-        df_games["game_name"] == "Rocket League"
-    ]
-
-    fortnite = df_games[
-        df_games["game_name"] == "Fortnite"
-    ]
-
-    if not rocket.empty and not fortnite.empty:
-
-        rocket_average = float(
-            rocket.iloc[0]["average_viewers"]
-        )
-
-        fortnite_average = float(
-            fortnite.iloc[0]["average_viewers"]
-        )
-
-        difference = (
-            rocket_average - fortnite_average
-        )
-
-        st.subheader(
-            "🚀 Rocket League vs Fortnite"
-        )
-
-        col1, col2, col3 = st.columns(3)
-
-        col1.metric(
-            "Rocket League",
-            f"{rocket_average:.1f}"
-        )
-
-        col2.metric(
-            "Fortnite",
-            f"{fortnite_average:.1f}"
-        )
-
-        col3.metric(
-            "Diferencia de medias",
-            f"{difference:+.1f}"
-        )
-
-        st.caption(
-            "Diferencia entre medias de muestras. "
-            "No implica causalidad ni garantiza "
-            "que un juego atraiga más espectadores."
-        )
-
-else:
-    st.info(
-        "Todavía no hay datos para comparar juegos."
-    )
-
-
-
-# ==========================================
-# ASISTENTE DE IA LOCAL - OLLAMA
-# ==========================================
-
-st.divider()
-st.header("🤖 JoyStream AI — Asistente gratuito")
-
-st.caption("Modelo local con Ollama · Sin API de pago")
-
-# Guardar conversación en la sesión
-if "ai_messages" not in st.session_state:
-    st.session_state.ai_messages = []
-
-
-# Mostrar mensajes anteriores
-for message in st.session_state.ai_messages:
-
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-
-# Entrada del usuario
-question = st.chat_input(
-    "Pregunta sobre tus estadísticas..."
-)
-
-
-if question:
-
-    # Mostrar pregunta
-    st.session_state.ai_messages.append({
-        "role": "user",
-        "content": question
-    })
-
-    with st.chat_message("user"):
-        st.markdown(question)
-
-    # Generar respuesta
-    with st.chat_message("assistant"):
-
-        with st.spinner("Analizando datos con Ollama..."):
-
+        response = requests.get(f"{API_URL}{path}", timeout=timeout)
+        response.raise_for_status()
+        return response.json(), None
+    except requests.RequestException as exc:
+        return None, str(exc)
+    except ValueError:
+        return None, "El backend no devolvió JSON válido."
+
+
+def api_post(path, data=None, timeout=90):
+    try:
+        response = requests.post(f"{API_URL}{path}", json=data, timeout=timeout)
+        response.raise_for_status()
+        return response.json(), None
+    except requests.RequestException as exc:
+        detail = ""
+        if getattr(exc, "response", None) is not None:
             try:
-                response = requests.post(
-                    f"{API_URL}/ai/analyze",
-                    json={"question": question},
-                    timeout=240
-                )
+                detail = str(exc.response.json().get("detail", ""))
+            except ValueError:
+                detail = exc.response.text[:180]
+        return None, f"{exc}. {detail}".strip()
+    except ValueError:
+        return None, "El backend no devolvió JSON válido."
 
-                response.raise_for_status()
 
-                result = response.json()
-                answer = result["answer"]
+def to_df(payload):
+    return pd.DataFrame(payload) if isinstance(payload, list) else pd.DataFrame()
 
-                # Mostrar respuesta de Ollama
+
+def with_dates(df, columns=("created_at", "captured_at", "started_at")):
+    df = df.copy()
+    for column in columns:
+        if column in df.columns:
+            df[column] = pd.to_datetime(df[column], utc=True, errors="coerce")
+    return df
+
+
+def number(value):
+    try:
+        if value is None or pd.isna(value):
+            return 0
+        return int(value)
+    except (ValueError, TypeError):
+        return 0
+
+
+def fmt(value):
+    return f"{number(value):,}".replace(",", ".")
+
+
+def sum_views(df):
+    if df.empty or "view_count" not in df.columns:
+        return 0
+    return int(pd.to_numeric(df["view_count"], errors="coerce").fillna(0).sum())
+
+
+def show_error(error, label):
+    if error:
+        st.error(f"No se pudieron cargar {label}: {error}")
+
+
+def table(df, columns=None):
+    if df.empty:
+        st.info("Todavía no hay datos registrados para esta sección.")
+        return
+    columns = [c for c in (columns or df.columns.tolist()) if c in df.columns]
+    st.dataframe(df[columns], use_container_width=True, hide_index=True)
+
+
+def metric_row(items):
+    cols = st.columns(len(items))
+    for col, (label, value) in zip(cols, items):
+        col.metric(label, value)
+
+
+def load_core_data():
+    videos, video_error = api_get("/db/videos")
+    clips, clip_error = api_get("/db/clips")
+    return with_dates(to_df(videos)), with_dates(to_df(clips)), video_error, clip_error
+
+
+st.sidebar.title("🎮 JoyStream AI")
+st.sidebar.caption("Panel local · joysantalola67")
+page = st.sidebar.radio(
+    "Secciones",
+    [
+        "🏠 Resumen", "🎬 Clips", "📹 VOD", "🔴 Directos",
+        "👥 Comunidad", "🤖 Asistente IA", "🛠️ Estado del sistema",
+    ],
+    label_visibility="collapsed",
+)
+st.sidebar.divider()
+st.sidebar.link_button("Ver canal en Twitch", CHANNEL_URL, use_container_width=True)
+
+if st.sidebar.button("🔄 Sincronizar clips y VOD", use_container_width=True):
+    with st.sidebar:
+        with st.spinner("Sincronizando con Twitch..."):
+            result, error = api_post("/sync", timeout=120)
+        if error:
+            st.error(error)
+        else:
+            st.success(
+                f"Procesados: {result.get('videos_processed', 0)} VOD y "
+                f"{result.get('clips_processed', 0)} clips"
+            )
+            st.rerun()
+
+st.sidebar.caption("Los datos se actualizan al navegar o recargar la página.")
+
+
+if page == "🏠 Resumen":
+    st.title("📊 Resumen del canal")
+    st.caption("Vista general del contenido almacenado; las vistas no equivalen a espectadores únicos.")
+    videos, clips, video_error, clip_error = load_core_data()
+    show_error(video_error, "los VOD")
+    show_error(clip_error, "los clips")
+
+    metric_row([
+        ("🎬 Clips almacenados", fmt(len(clips))),
+        ("📹 VOD almacenados", fmt(len(videos))),
+        ("👀 Vistas de clips", fmt(sum_views(clips))),
+        ("▶️ Vistas de VOD", fmt(sum_views(videos))),
+    ])
+
+    st.subheader("🏆 Clips con más visualizaciones")
+    if not clips.empty and {"title", "view_count"}.issubset(clips.columns):
+        top = clips.copy()
+        top["view_count"] = pd.to_numeric(top["view_count"], errors="coerce").fillna(0)
+        top = top.nlargest(8, "view_count")
+        top["clip"] = top["title"].fillna("Sin título").astype(str).str.slice(0, 45)
+        st.bar_chart(top, x="clip", y="view_count", horizontal=True)
+    else:
+        st.info("Sin clips para mostrar.")
+
+    st.subheader("👥 Última medición de comunidad")
+    community, error = api_get("/channel/history")
+    if error:
+        st.caption(f"Comunidad no disponible: {error}")
+    elif community:
+        latest = community[-1]
+        subs = latest.get("subscribers")
+        metric_row([
+            ("Seguidores", fmt(latest.get("followers"))),
+            ("Suscriptores", "No disponible" if subs is None else fmt(subs)),
+        ])
+    else:
+        st.info("Aún no se ha registrado una medición de comunidad.")
+
+
+elif page == "🎬 Clips":
+    st.title("🎬 Analítica de clips")
+    payload, error = api_get("/db/clips")
+    show_error(error, "los clips")
+    clips = with_dates(to_df(payload))
+
+    if clips.empty:
+        st.info("Sin clips guardados. Usa el botón de sincronización.")
+    else:
+        if "view_count" in clips.columns:
+            clips["view_count"] = pd.to_numeric(clips["view_count"], errors="coerce").fillna(0)
+        if "game_id" in clips.columns:
+            options = sorted(clips["game_id"].dropna().astype(str).unique().tolist())
+            selected = st.selectbox("Filtrar por Game ID", ["Todos"] + options)
+            if selected != "Todos":
+                clips = clips[clips["game_id"].astype(str) == selected]
+            st.caption("En una mejora posterior resolveremos los Game ID a nombres de juegos.")
+
+        metric_row([
+            ("Clips filtrados", fmt(len(clips))),
+            ("Vistas acumuladas", fmt(sum_views(clips))),
+            ("Media de vistas", f"{pd.to_numeric(clips['view_count'], errors='coerce').mean():.1f}" if not clips.empty and "view_count" in clips else "—"),
+        ])
+        if not clips.empty and {"title", "view_count"}.issubset(clips.columns):
+            top = clips.nlargest(10, "view_count").copy()
+            top["clip"] = top["title"].fillna("Sin título").astype(str).str.slice(0, 40)
+            st.subheader("Top 10 clips")
+            st.bar_chart(top, x="clip", y="view_count", horizontal=True)
+        st.subheader("Clips registrados")
+        table(clips, ["title", "created_at", "view_count", "duration", "game_id", "url"])
+
+    st.divider()
+    st.subheader("📈 Evolución histórica de un clip")
+    history, error = api_get("/history/clips")
+    show_error(error, "el historial de clips")
+    df_history = with_dates(to_df(history))
+    if not df_history.empty and "content_id" in df_history.columns:
+        names, _ = api_get("/db/clips")
+        name_map = {str(c["id"]): c.get("title", c["id"]) for c in (names or []) if "id" in c}
+        options = df_history["content_id"].dropna().astype(str).unique().tolist()
+        chosen = st.selectbox("Clip a analizar", options, format_func=lambda x: name_map.get(x, x))
+        selected = df_history[df_history["content_id"].astype(str) == chosen].sort_values("captured_at")
+        st.line_chart(selected, x="captured_at", y="view_count")
+        if len(selected):
+            delta = number(selected.iloc[-1]["view_count"]) - number(selected.iloc[0]["view_count"])
+            st.metric("Variación desde la primera muestra", fmt(delta))
+        st.caption("Las muestras se generan durante las sincronizaciones de Twitch, no cada visualización.")
+    else:
+        st.info("Todavía no hay historial de visualizaciones de clips.")
+
+
+elif page == "📹 VOD":
+    st.title("📹 Vídeos y VOD")
+    payload, error = api_get("/db/videos")
+    show_error(error, "los VOD")
+    videos = with_dates(to_df(payload))
+    if videos.empty:
+        st.info("Todavía no hay VOD registrados.")
+    else:
+        metric_row([
+            ("VOD almacenados", fmt(len(videos))),
+            ("Visualizaciones acumuladas", fmt(sum_views(videos))),
+        ])
+        if {"created_at", "view_count"}.issubset(videos.columns):
+            chart = videos.sort_values("created_at").copy()
+            chart["view_count"] = pd.to_numeric(chart["view_count"], errors="coerce").fillna(0)
+            st.subheader("Visualizaciones por fecha del VOD")
+            st.bar_chart(chart, x="created_at", y="view_count")
+        st.subheader("Listado de VOD")
+        table(videos, ["title", "created_at", "duration", "view_count", "url"])
+    st.caption("Las vistas de VOD no deben confundirse con los espectadores simultáneos.")
+
+
+elif page == "🔴 Directos":
+    st.title("🔴 Monitorización de directos")
+    live, live_error = api_get("/twitch/live")
+    if live_error:
+        st.warning(f"No se pudo consultar el estado actual: {live_error}")
+    elif live and live.get("is_live"):
+        current = live.get("stream") or {}
+        st.success(f"EN DIRECTO · {current.get('game_name', 'Sin categoría')} · "
+                   f"{fmt(current.get('viewer_count'))} espectadores")
+        st.write(f"**Título:** {current.get('title', 'Sin título')}")
+    else:
+        st.info("El canal está offline en este momento.")
+
+    session_payload, session_error = api_get("/analytics/sessions")
+    game_payload, game_error = api_get("/analytics/games")
+    show_error(session_error, "el análisis de sesiones")
+    show_error(game_error, "el análisis por juegos")
+    sessions = with_dates(to_df(session_payload))
+    games = to_df(game_payload)
+
+    if not sessions.empty:
+        metric_row([
+            ("Directos monitorizados", fmt(len(sessions))),
+            ("Pico observado", fmt(sessions["peak_viewers"].max()) if "peak_viewers" in sessions else "—"),
+            ("Muestras registradas", fmt(sessions["measurements"].sum()) if "measurements" in sessions else "—"),
+        ])
+        st.subheader("Comparativa de sesiones")
+        metric = st.radio("Métrica", ["peak_viewers", "average_viewers"],
+                          format_func=lambda x: "Pico" if x == "peak_viewers" else "Media", horizontal=True)
+        if {"stream_id", metric}.issubset(sessions.columns):
+            sessions["label"] = sessions["started_at"].dt.strftime("%d/%m %H:%M").fillna("Sin fecha") + " · " + sessions["stream_id"].astype(str).str[-5:]
+            st.bar_chart(sessions, x="label", y=metric)
+        table(sessions, ["started_at", "games_label", "average_viewers", "peak_viewers", "measurements", "observed_minutes"])
+    else:
+        st.info("Aún no tenemos sesiones monitorizadas. El monitor tomará muestras durante el próximo directo.")
+
+    st.subheader("🎮 Comparativa de categorías")
+    if not games.empty and {"game_name", "average_viewers"}.issubset(games.columns):
+        st.bar_chart(games, x="game_name", y="average_viewers", horizontal=True)
+        table(games, ["game_name", "sessions", "measurements", "average_viewers", "peak_viewers"])
+    else:
+        st.info("No hay datos suficientes para comparar Rocket League y Fortnite.")
+    st.caption("Las medias y picos son observados por nuestro monitor, no los informes oficiales agregados de Twitch.")
+
+
+elif page == "👥 Comunidad":
+    st.title("👥 Seguidores y suscriptores")
+    history, error = api_get("/channel/history")
+    show_error(error, "el historial de comunidad")
+    df = with_dates(to_df(history))
+
+    if st.button("📥 Registrar medición ahora"):
+        with st.spinner("Consultando Twitch..."):
+            _, sync_error = api_post("/channel/sync", timeout=45)
+        if sync_error:
+            st.error(f"No se pudo sincronizar: {sync_error}")
+            st.caption("Comprueba /auth/twitch/status y los permisos OAuth.")
+        else:
+            st.success("Nueva medición de comunidad registrada.")
+            st.rerun()
+
+    if df.empty:
+        st.info("No hay mediciones todavía. Autoriza Twitch y registra la primera.")
+        st.code("http://localhost:8000/auth/twitch/start")
+    else:
+        df = df.sort_values("captured_at")
+        first, latest = df.iloc[0], df.iloc[-1]
+        subs = latest.get("subscribers")
+        metric_row([
+            ("Seguidores (última muestra)", fmt(latest.get("followers"))),
+            ("Variación neta registrada", fmt(number(latest.get("followers")) - number(first.get("followers")))),
+            ("Suscriptores", "No disponible" if pd.isna(subs) else fmt(subs)),
+        ])
+        if {"captured_at", "followers"}.issubset(df.columns):
+            st.subheader("Historial de seguidores")
+            st.line_chart(df, x="captured_at", y="followers")
+        if "subscribers" in df.columns and df["subscribers"].notna().any():
+            st.subheader("Historial de suscriptores")
+            st.line_chart(df.dropna(subset=["subscribers"]), x="captured_at", y="subscribers")
+        table(df, ["captured_at", "followers", "subscribers", "subscription_points"])
+        st.caption("El crecimiento es neto desde la primera medición; no equivale a altas brutas ni necesariamente a una semana.")
+
+
+elif page == "🤖 Asistente IA":
+    st.title("🤖 Asistente de IA local")
+    st.caption("Ollama + Qwen · Sin API de pago · Las respuestas deben contrastarse con el dashboard.")
+    if "ai_messages" not in st.session_state:
+        st.session_state.ai_messages = []
+    if st.button("🧹 Limpiar conversación"):
+        st.session_state.ai_messages = []
+        st.rerun()
+
+    for message in st.session_state.ai_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    question = st.chat_input("Por ejemplo: ¿Cuál es mi clip más visto?")
+    if question:
+        st.session_state.ai_messages.append({"role": "user", "content": question})
+        with st.chat_message("user"):
+            st.markdown(question)
+        with st.chat_message("assistant"):
+            with st.spinner("Consultando el modelo local..."):
+                result, error = api_post("/ai/analyze", {"question": question}, timeout=240)
+            if error:
+                st.error(f"No se pudo completar el análisis: {error}")
+            else:
+                answer = result.get("answer", "No se recibió una respuesta.")
                 st.markdown(answer)
-
-                # Mostrar información del modelo
-                if result["model"]:
+                if result.get("model"):
                     st.caption(
-                        f"🤖 Modelo: {result['model']} | "
-                        f"🎬 Clips: {result['clips_analyzed']} | "
-                        f"📹 VOD: {result['videos_analyzed']} | "
-                        f"🔴 Directos: {result['sessions_analyzed']}"
+                        f"Modelo: {result['model']} · "
+                        f"Clips: {result.get('clips_analyzed', '—')} · "
+                        f"VOD: {result.get('videos_analyzed', '—')} · "
+                        f"Directos: {result.get('sessions_analyzed', '—')}"
                     )
+                st.session_state.ai_messages.append({"role": "assistant", "content": answer})
+    st.info("La IA recibe estadísticas resumidas. No visualiza el contenido de los clips ni puede deducir seguidores nuevos sin mediciones.")
 
-                # Guardar respuesta
-                st.session_state.ai_messages.append({
-                    "role": "assistant",
-                    "content": answer
-                })
 
-            except requests.RequestException as error:
-                st.error(
-                    "No se pudo completar el análisis. "
-                    "Comprueba FastAPI y Ollama."
-                )
-                st.caption(str(error))
+else:  # Estado del sistema
+    st.title("🛠️ Estado de JoyStream AI")
+    health, health_error = api_get("/health", timeout=5)
+    if health_error:
+        st.error(f"Backend inaccesible: {health_error}")
+    else:
+        st.success(f"Backend accesible: {health}")
+
+    oauth, oauth_error = api_get("/auth/twitch/status", timeout=10)
+    if oauth_error:
+        st.warning(f"No se pudo verificar OAuth: {oauth_error}")
+    else:
+        st.write("**OAuth Twitch autorizado:**", "Sí" if oauth.get("authorized") else "No")
+    st.markdown("**Servicios Docker esperados:** `backend`, `db`, `dashboard`, `scheduler`, `monitor`, `ollama`.")
+    st.code("docker compose ps\ndocker compose logs --tail=50 backend\ndocker compose logs --tail=50 dashboard", language="bash")
+    st.caption("Esta página verifica la API, pero no demuestra que el Scheduler, el monitor y Ollama estén sanos.")
+
+st.divider()
+st.caption("JoyStream AI · Proyecto personal de AI Engineering · Datos recogidos desde Twitch")
