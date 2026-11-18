@@ -1,0 +1,108 @@
+
+import os
+import signal
+import threading
+from datetime import datetime, timezone
+
+import requests
+
+
+# CONFIGURACIÓN
+API_URL = os.getenv(
+    "API_URL",
+    "http://backend:8000"
+)
+
+INTERVAL = int(
+    os.getenv("SYNC_INTERVAL_SECONDS", "21600")
+)
+
+# Permite detener el programa correctamente
+stop_event = threading.Event()
+
+
+def stop_scheduler(signum, frame):
+    print("Deteniendo scheduler...", flush=True)
+    stop_event.set()
+
+
+signal.signal(signal.SIGTERM, stop_scheduler)
+signal.signal(signal.SIGINT, stop_scheduler)
+
+
+def sync_twitch():
+    """Solicita una sincronización al backend."""
+
+    now = datetime.now(timezone.utc)
+
+    print(
+        f"[{now.isoformat()}] Iniciando sincronización",
+        flush=True
+    )
+
+    try:
+        response = requests.post(
+            f"{API_URL}/sync",
+            timeout=90
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        print(
+            "Sincronización completada: "
+            f"{data['videos_processed']} vídeos, "
+            f"{data['clips_processed']} clips",
+            flush=True
+        )
+
+    except requests.RequestException as error:
+        print(
+            f"Error en la sincronización: {error}",
+            flush=True
+        )
+
+
+def main():
+    if INTERVAL < 30:
+        raise ValueError(
+            "El intervalo debe ser de al menos 30 segundos"
+        )
+
+    print("JoyStream AI Scheduler iniciado")
+    print(f"Intervalo configurado: {INTERVAL} segundos")
+
+    # Primera ejecución inmediatamente
+    # Reintenta si FastAPI todavía no está disponible
+    while not stop_event.is_set():
+        try:
+            response = requests.get(
+                f"{API_URL}/health",
+                timeout=5
+            )
+            response.raise_for_status()
+            break
+        except requests.RequestException:
+            print(
+                "Esperando a que FastAPI esté disponible..."
+            )
+            stop_event.wait(10)
+
+    # Bucle principal
+    while not stop_event.is_set():
+
+        sync_twitch()
+
+        print(
+            f"Próxima ejecución tras {INTERVAL} segundos",
+            flush=True
+        )
+
+        stop_event.wait(INTERVAL)
+
+    print("Scheduler detenido correctamente")
+
+
+if __name__ == "__main__":
+    main()
