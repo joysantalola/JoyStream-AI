@@ -1,7 +1,45 @@
-
+# Credenciales y configuración privada
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
+venv/
+.pytest_cache/
+
+# Archivos locales
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs y temporales
+*.log
+*.tmp
+
+# Copias de seguridad
+copias_locales/
+*_backup_*.py
+*_backup_*.js
+*_backup_*.css
+*_backup_*.html
+compose_backup_*.yaml
+*.bak
+*.sql
+*.dump
+
+# Bases de datos locales
+*.db
+*.sqlite
+*.sqlite3
+
+# JavaScript
+node_modules/
+dist/

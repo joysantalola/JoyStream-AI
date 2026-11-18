@@ -9,6 +9,7 @@ services:
     environment:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5:3b
+      TWITCH_REDIRECT_URI: http://localhost:8000/auth/twitch/callback
     volumes:
       - ./backend/app:/app/app
     depends_on:
@@ -75,6 +76,16 @@ services:
     image: ollama/ollama:latest
     volumes:
       - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - backend
     restart: unless-stopped
 
 

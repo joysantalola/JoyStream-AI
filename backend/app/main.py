@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from starlette.concurrency import run_in_threadpool
+from app.enhancements import router as enhancements_router
 
 from app.twitch import (
     get_channel_info,
@@ -27,7 +28,14 @@ from app.storage import (
     get_stream_samples
 )
 
+from app.channel_metrics import (
+    fetch_channel_metrics,
+    save_channel_metrics,
+    get_channel_history
+)
+
 from app.analytics import session_report, games_report
+from app.twitch_auth import router as twitch_auth_router
 
 from pydantic import BaseModel, Field
 from app.ai import analyze_channel
@@ -42,8 +50,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="JoyStream AI",
     lifespan=lifespan
+    
 )
 
+# REGISTRAR RUTAS DE TWITCH OAUTH
+app.include_router(twitch_auth_router)
+app.include_router(enhancements_router)
 
 @app.get("/")
 def home():
@@ -174,3 +186,26 @@ async def ai_analyze(request: AIQuestion):
     """Analiza el canal usando Ollama."""
     return await analyze_channel(request.question)
 
+
+@app.get("/channel/current")
+async def channel_current():
+    """Consulta las métricas actuales de Twitch."""
+    return await fetch_channel_metrics()
+
+
+@app.post("/channel/sync")
+async def channel_sync():
+    """Consulta y guarda una medición histórica."""
+
+    metrics = await fetch_channel_metrics()
+
+    return await run_in_threadpool(
+        save_channel_metrics,
+        metrics
+    )
+
+
+@app.get("/channel/history")
+def channel_history():
+    """Devuelve el historial almacenado."""
+    return get_channel_history()

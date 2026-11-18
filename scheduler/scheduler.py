@@ -57,6 +57,32 @@ def sync_twitch():
             flush=True
         )
 
+
+        # Sincronización de seguidores y suscriptores
+        channel_response = requests.post(
+            f"{API_URL}/channel/sync",
+            timeout=40
+        )
+
+        if channel_response.status_code == 409:
+            print(
+                "Twitch OAuth todavía no autorizado",
+                flush=True
+            )
+
+        else:
+            channel_response.raise_for_status()
+
+            metrics = channel_response.json()
+
+            print(
+                "Comunidad actualizada: "
+                f"{metrics['followers']} seguidores, "
+                f"{metrics['subscribers']} suscriptores",
+                flush=True
+            )
+
+
     except requests.RequestException as error:
         print(
             f"Error en la sincronización: {error}",

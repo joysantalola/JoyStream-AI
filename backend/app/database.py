@@ -13,7 +13,8 @@ from sqlalchemy import (
     func,
     BigInteger, 
     Index, 
-    Identity
+    Identity,
+    Boolean
 )
 from sqlalchemy.engine import URL
 
@@ -150,6 +151,37 @@ stream_samples_table = Table(
         "stream_id",
         "captured_at"
     )
+)
+
+
+# Credenciales OAuth del propietario del canal
+oauth_tokens_table = Table(
+    "oauth_tokens",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("access_token", Text, nullable=False),
+    Column("refresh_token", Text, nullable=False),
+    Column("expires_at", DateTime(timezone=True),
+           nullable=False),
+)
+
+
+# Historial de seguidores y suscriptores
+channel_metrics_table = Table(
+    "channel_metrics",
+    metadata,
+    Column(
+        "id", BigInteger, Identity(),
+        primary_key=True
+    ),
+    Column("followers", Integer, nullable=False),
+    Column("subscribers", Integer, nullable=True),
+    Column("subscription_points", Integer, nullable=True),
+    Column(
+        "captured_at",
+        DateTime(timezone=True),
+        nullable=False
+    ),
 )
 
 
