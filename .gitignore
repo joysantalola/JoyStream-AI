@@ -43,3 +43,12 @@ compose_backup_*.yaml
 # JavaScript
 node_modules/
 dist/
+
+# Agensi commercial files
+agensi-skills/joystream-pro/
+agensi-skills/dist/
+agensi-skills/tests/
+
+# Python
+__pycache__/
+*.pyc
