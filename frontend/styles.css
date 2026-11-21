@@ -172,3 +172,25 @@ body.compact table.data td { padding:8px 14px; } body.compact table.data th { pa
 @media(max-width:950px){.joy-session-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.joy-detail-info{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.joy-compare-grid,.joy-detail-info{grid-template-columns:1fr}.joy-compare-select{width:100%}.joy-compare-select select{min-width:0;flex:1;max-width:100%}.joy-timeline-svg{height:235px}}
 
+
+
+/* Graficas de comunidad - estilos aislados de otras paginas */
+.cc-card{min-width:0}
+.cc-summary{display:flex;gap:22px;flex-wrap:wrap;margin:1px 0 12px}
+.cc-summary>div{display:flex;flex-direction:column;gap:3px}
+.cc-summary-label{font-size:11px;color:#95a4bf}
+.cc-summary strong{font-size:22px;color:#f4f2ff;font-variant-numeric:tabular-nums}
+.cc-summary .cc-positive{color:#51ddb5}
+.cc-summary .cc-negative{color:#ff9aa5}
+.cc-plot{position:relative;min-width:0}
+.cc-svg{display:block;width:100%;height:auto;min-height:190px;overflow:visible}
+.cc-grid{stroke:#2a3750;stroke-width:1}
+.cc-tick{fill:#9aaac5;font-size:10px}
+.cc-line{fill:none;stroke:#bb94ff;stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
+.cc-point{fill:#c6a7ff;stroke:#1a2340;stroke-width:2;cursor:crosshair;outline:none}
+.cc-point:hover,.cc-point:focus{fill:#fff;stroke:#b28dff;stroke-width:3}
+.cc-tooltip{position:absolute;transform:translateX(-50%);pointer-events:none;white-space:nowrap;background:#262045;border:1px solid #a68aff;color:#f9f7ff;padding:8px 12px;border-radius:9px;font-size:12px;box-shadow:0 10px 30px #0007;z-index:2}
+.cc-tooltip[hidden]{display:none}
+.cc-foot{font-size:11px;color:#b3c2d9;line-height:1.5;margin-top:6px}
+.cc-foot span{color:#8193b0}
+@media(max-width:600px){.cc-summary{gap:20px}.cc-summary strong{font-size:20px}.cc-tick{font-size:9px}}
