@@ -52,3 +52,28 @@ agensi-skills/tests/
 # Python
 __pycache__/
 *.pyc
+# JoyStream AI 26C - secreto local, nunca subir a Git
+/.joystream-auth.env
+# JoyStream 26D: secreto privado entre servicios
+/.joystream-internal.env
+
+# JoyStream AI v1.0 - archivos locales
+.env
+.joystream-auth.env
+.joystream-internal.env
+backups/
+__pycache__/
+*.pyc
+*.py.bak
+*.py.bak_*
+*.bak
+*.bak.*
+*.bak_*
+*:Zone.Identifier
+
+# Instaladores y paquetes de desarrollo
+PASO26C/
+REFERENCIAS/
+INSTALAR_PASO*.py
+INSTRUCCIONES_PASO*.txt
+PRUEBAS_PASO*.py

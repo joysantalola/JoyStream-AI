@@ -1,3 +1,4 @@
+from app.auth_local import router as auth_router, LocalAuthMiddleware  # JOYSTREAM_26C_LOCAL_AUTH
 
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,8 @@ from app.twitch import (
     get_clips,
     get_live_stream
 )
+
+from app.startup import wait_for_database  # JOYSTREAM_26A
 
 from app.database import (
     create_tables,
@@ -43,7 +46,7 @@ from app.ai import analyze_channel
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Al iniciar, creamos las tablas que falten
-    await run_in_threadpool(create_tables)
+    await run_in_threadpool(wait_for_database, create_tables)
     yield
 
 
@@ -52,6 +55,9 @@ app = FastAPI(
     lifespan=lifespan
     
 )
+
+app.include_router(auth_router)
+app.add_middleware(LocalAuthMiddleware)
 
 # REGISTRAR RUTAS DE TWITCH OAUTH
 app.include_router(twitch_auth_router)
@@ -179,12 +185,16 @@ class AIQuestion(BaseModel):
         min_length=5,
         max_length=500
     )
+    history: list[dict] = Field(
+        default_factory=list,
+        max_length=8
+    )
 
 
 @app.post("/ai/analyze")
 async def ai_analyze(request: AIQuestion):
     """Analiza el canal usando Ollama."""
-    return await analyze_channel(request.question)
+    return await analyze_channel(request.question, request.history)
 
 
 @app.get("/channel/current")

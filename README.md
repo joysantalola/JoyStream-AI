@@ -2,203 +2,223 @@
 
 # 🎮 JoyStream AI
 
-### Twitch analytics powered by Python, PostgreSQL and local AI
+### Analítica de Twitch con Python, PostgreSQL e inteligencia artificial local
 
-**Collect. Visualize. Understand. Improve.**
+**Recopila. Visualiza. Analiza. Mejora.**
 
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![Ollama](https://img.shields.io/badge/AI-Ollama%20%2B%20Qwen%202.5-7B61FF)](https://ollama.com/)
-![Status](https://img.shields.io/badge/Status-Active%20development-orange)
+[![Ollama](https://img.shields.io/badge/IA-Ollama%20%2B%20Qwen%202.5-7B61FF)](https://ollama.com/)
+![Estado](https://img.shields.io/badge/Estado-versi%C3%B3n%20local%20en%20preparaci%C3%B3n-orange)
 
-**An independent, self-hosted Twitch analytics platform built for [Joysantalola](https://www.twitch.tv/joysantalola67).**
+**Plataforma independiente de análisis de Twitch, desarrollada para el canal [Joysantalola](https://www.twitch.tv/joysantalola67).**
 
-[Features](#-features) · [Architecture](#-architecture) · [Quick start](#-quick-start) · [API](#-api-overview) · [Roadmap](#-roadmap)
+[Características](#-características) · [Arquitectura](#-arquitectura) · [Instalación](#-instalación-local) · [API](#-resumen-de-la-api) · [Seguridad](#-seguridad) · [Próximos pasos](#-próximos-pasos)
 
 </div>
 
 ---
 
-## 📖 About the project
+## 📖 Acerca del proyecto
 
-**JoyStream AI** is a personal AI and Big Data portfolio project that brings together Twitch data ingestion, historical analytics, a responsive web dashboard and an AI assistant running **locally** with Ollama.
+**JoyStream AI** es un proyecto personal de portfolio de inteligencia artificial y Big Data que integra la obtención de datos de Twitch, el almacenamiento histórico en PostgreSQL, un panel web y un asistente de IA ejecutado **en local** mediante Ollama.
 
-Instead of relying solely on the statistics displayed in Twitch, the platform periodically collects available data, stores snapshots in PostgreSQL, and helps analyze clips, VODs, live audience samples and channel growth over time.
+La plataforma recopila periódicamente los datos disponibles, conserva registros históricos y ayuda a estudiar el rendimiento de clips, vídeos bajo demanda (VOD), directos y evolución de la comunidad.
 
-**The goal:** make data-driven decisions about streaming content while learning practical backend engineering, data pipelines, OAuth, databases, containerization and applied AI.
+**Objetivo:** mejorar las decisiones sobre los contenidos del canal mediante datos, a la vez que se ponen en práctica conocimientos de desarrollo backend, APIs, OAuth, bases de datos, automatización, Docker e IA aplicada.
 
-> **Project scope:** currently designed for one Twitch channel (`joysantalola67`) and local development. It is **not** a hosted public SaaS product.
+> **Alcance actual:** está configurado principalmente para un único canal, `joysantalola67`, y un entorno de desarrollo local. No es un servicio SaaS público ni una aplicación preparada para exponerse directamente a Internet. Adaptarlo a otro canal puede requerir cambios adicionales en la configuración y en el backend.
 
-## ✨ Features
+## ✨ Características
 
-| Area | Capabilities |
+| Área | Funcionalidades |
 | --- | --- |
-| **Channel profile** | Twitch display name, description and profile picture |
-| **Clips** | Import, store, rank and filter clips; track views and game categories |
-| **VODs** | Import archived videos, view statistics and track view history |
-| **Game metadata** | Resolve clip game IDs to names; show observed, inferred or unknown VOD categories |
-| **Live monitoring** | Poll current stream status and record viewer-count samples while the channel is live |
-| **Session analytics** | Aggregate samples by stream and compare games when enough data exists |
-| **Community** | Track follower totals and available subscriber metrics over time |
-| **Advertising** | View Twitch ad schedule when the channel and OAuth permissions allow it |
-| **AI assistant** | Ask questions in Spanish about stored statistics using Ollama + `qwen2.5:3b` |
-| **Automation** | Periodic synchronization and continuous live monitoring via dedicated containers |
-| **Web dashboard** | Responsive HTML/CSS/JavaScript interface with an Nginx reverse proxy |
-| **Testing** | Python `unittest` tests covering AI context preparation |
+| **Perfil del canal** | Nombre, descripción e imagen de perfil de Twitch. |
+| **Clips** | Importación, almacenamiento, clasificación, filtros, visualizaciones y videojuegos asociados. |
+| **Vídeos (VOD)** | Importación de emisiones archivadas, estadísticas e histórico de visualizaciones. |
+| **Categorías** | Resolución de identificadores de videojuegos y distinción entre categorías observadas, inferidas o desconocidas. |
+| **Monitorización en directo** | Consulta del estado de emisión y registro periódico de muestras de espectadores simultáneos. |
+| **Análisis de emisiones** | Agrupación por emisión, comparación de directos y análisis por videojuego y franja horaria. |
+| **Comunidad** | Seguimiento de seguidores y, cuando Twitch lo permite, datos de suscripciones. |
+| **Publicidad** | Consulta de información sobre la programación de anuncios, según los permisos disponibles. |
+| **Joy AI** | Preguntas en español sobre los datos almacenados mediante Ollama y `qwen2.5:3b`. |
+| **Automatización** | Sincronización periódica y monitorización mediante servicios independientes. |
+| **Panel web** | Interfaz adaptable en HTML, CSS y JavaScript, servida por Nginx. |
+| **Pruebas** | Pruebas unitarias de Python para la preparación y el análisis de datos. |
 
-### Important data limitations
+### Novedades de la versión 1.0
 
-- **Views are not concurrent viewers.** Clip and VOD views are different from live audience samples.
-- **VOD categories are not always directly available.** The interface distinguishes categories observed during live-stream samples, inferred from associated clips, and unknown categories.
-- **Channel growth is measured from saved snapshots.** A change in follower totals represents *net change*, not necessarily the number of new follows.
-- **Unavailable subscriber data is not zero.** Access depends on Twitch permissions and channel eligibility.
-- **Ad scheduling is not ad history.** The current integration does **not** count every ad break during a past stream or report advertising revenue.
-- **AI analysis is advisory.** The assistant receives stored metrics and can make mistakes; its suggestions are not guarantees or causal conclusions.
+- Comparaciones entre **emisiones independientes**, incluso cuando se juega varias veces al mismo título en un día.
+- Medias por emisión y medias **ponderadas por muestras**, diferenciadas en las respuestas.
+- Análisis de tendencias, horarios, videojuegos y seguimiento de recomendaciones cuando existen datos suficientes.
+- Autenticación local para las operaciones sensibles y una credencial interna independiente para el programador de sincronizaciones.
+- Mejoras de arranque de los servicios y resolución dinámica del backend desde Nginx.
+- **72 pruebas automatizadas superadas** en la instalación de desarrollo utilizada para preparar la versión.
 
-## 🛠️ Tech stack
+### Limitaciones de los datos
 
-| Layer | Technology |
+- **Visualizaciones no equivale a espectadores simultáneos.** Las reproducciones de clips y VOD son distintas de las muestras de audiencia de un directo.
+- **La categoría de un VOD puede ser incierta.** Se distingue entre información observada durante el directo, inferida a partir de clips y desconocida.
+- **El crecimiento de seguidores es neto.** La diferencia entre dos registros no representa necesariamente el número de seguidores nuevos.
+- **Un dato no disponible no equivale a cero.** Esto es especialmente importante en las suscripciones, sujetas a permisos y condiciones de Twitch.
+- **La programación de anuncios no es un historial de anuncios.** La integración no calcula todos los cortes publicitarios realizados ni los ingresos obtenidos.
+- **Las recomendaciones de la IA son orientativas.** Las comparaciones estadísticas no demuestran causalidad ni garantizan un resultado futuro.
+
+## 🛠️ Tecnologías
+
+| Capa | Tecnologías |
 | --- | --- |
-| API | Python, FastAPI, HTTPX, Pydantic |
-| Data persistence | PostgreSQL 16, SQLAlchemy, psycopg |
-| Main frontend | HTML, CSS, vanilla JavaScript, Nginx |
-| Legacy/prototyping dashboard | Streamlit, Pandas |
-| Local LLM | Ollama, Qwen 2.5 3B |
-| Streaming integration | Twitch Helix API, OAuth 2.0 |
-| Infrastructure | Docker, Docker Compose |
-| Tests | Python `unittest` and `unittest.mock` |
-| Development environment | Windows + WSL2 Ubuntu + Docker Desktop |
+| API | Python 3.12, FastAPI, HTTPX, Pydantic |
+| Base de datos | PostgreSQL 16, SQLAlchemy, psycopg |
+| Interfaz principal | HTML, CSS, JavaScript y Nginx |
+| Panel anterior y prototipos | Streamlit y Pandas |
+| IA local | Ollama y Qwen 2.5 3B |
+| Twitch | API Helix y OAuth 2.0 |
+| Infraestructura | Docker y Docker Compose |
+| Pruebas | `unittest` y `unittest.mock` |
+| Entorno de desarrollo utilizado | Windows, WSL2, Ubuntu y Docker Desktop |
 
-## 🏗️ Architecture
+## 🏗️ Arquitectura
 
 ```mermaid
 flowchart TD
-    U[Browser] -->|localhost:8080| N[Nginx + HTML/CSS/JS]
-    N -->|/api/*| B[FastAPI backend]
-    S[Streamlit dashboard\nlocalhost:8501] --> B
-    SC[Scheduler\nevery 6 hours] -->|sync requests| B
-    B <-->|Helix API + OAuth| T[Twitch]
+    U[Navegador] -->|127.0.0.1:8080| N[Nginx e interfaz web]
+    N -->|/api/*| B[Backend FastAPI]
+    S[Panel Streamlit] --> B
+    SC[Programador de sincronización] -->|Petición autenticada cada 6 h| B
+    B <-->|API Helix y OAuth| T[Twitch]
     B <-->|SQLAlchemy| P[(PostgreSQL)]
-    B -->|chat requests| O[Ollama\nQwen 2.5 3B]
-    M[Live monitor\nevery 60 seconds] --> T
+    B -->|Consultas de IA| O[Ollama y Qwen 2.5 3B]
+    M[Monitor de directos] --> T
     M --> P
 ```
 
-### Docker services
+### Servicios de Docker
 
-The current `compose.yaml` defines **seven services**:
+El archivo `compose.yaml` define **siete servicios**:
 
-| Service | Purpose | Local URL / access |
+| Servicio | Función | Acceso |
 | --- | --- | --- |
-| `frontend` | Nginx web frontend and API reverse proxy | `http://localhost:8080` |
-| `backend` | FastAPI REST API and Twitch/Ollama integrations | `http://localhost:8000` |
-| `db` | Persistent PostgreSQL database | Internal Docker network |
-| `dashboard` | Previous Streamlit analytics interface | `http://localhost:8501` |
-| `scheduler` | Regular sync (configured at 21,600 seconds) | Background service |
-| `monitor` | Stream polling (configured at 60 seconds) | Background service |
-| `ollama` | Local AI model runtime | Internal Docker network |
+| `frontend` | Nginx, interfaz web y proxy inverso de la API | http://127.0.0.1:8080 |
+| `backend` | API FastAPI e integraciones con Twitch y Ollama | http://127.0.0.1:8000 |
+| `db` | Base de datos PostgreSQL | Red interna de Docker |
+| `dashboard` | Panel anterior desarrollado con Streamlit | http://127.0.0.1:8501 |
+| `scheduler` | Sincronización periódica, configurada cada 21.600 segundos (6 horas) | Servicio en segundo plano |
+| `monitor` | Monitorización de directos, configurada cada 60 segundos | Servicio en segundo plano |
+| `ollama` | Ejecución del modelo de IA local | Red interna de Docker |
 
-PostgreSQL and Ollama use named Docker volumes (`postgres_data` and `ollama_data`) to persist data and models between container restarts.
+Los volúmenes de Docker `postgres_data` y `ollama_data` conservan los datos y el modelo entre reinicios. **No ejecutes `docker compose down -v`** salvo que quieras eliminar deliberadamente esos volúmenes.
 
-## 📁 Project structure
+## 📁 Estructura del proyecto
 
 ```text
 JoyStream-AI/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py             # FastAPI routes
-│   │   ├── twitch.py           # Twitch Helix API
-│   │   ├── twitch_auth.py      # User OAuth and token renewal
-│   │   ├── database.py         # SQLAlchemy schema
-│   │   ├── storage.py          # Persistence and statistics
-│   │   ├── analytics.py        # Session / game analytics
-│   │   ├── channel_metrics.py  # Followers and subscriptions
-│   │   ├── enhancements.py     # Profile, games, VOD metadata, ads
-│   │   ├── ai.py               # Local AI integration
-│   │   ├── monitor.py          # Live audience polling
-│   │   └── test_ai.py          # Unit tests
+│   │   ├── main.py                 # Rutas de la API
+│   │   ├── twitch.py               # Integración con Twitch
+│   │   ├── twitch_auth.py          # OAuth y renovación de tokens
+│   │   ├── database.py             # Base de datos
+│   │   ├── storage.py              # Almacenamiento y estadísticas
+│   │   ├── analytics.py            # Análisis de emisiones
+│   │   ├── channel_metrics.py      # Seguidores y suscriptores
+│   │   ├── enhancements.py         # Metadatos y publicidad
+│   │   ├── ai.py                   # Integración de Joy AI
+│   │   ├── auth_local.py           # Autenticación del administrador
+│   │   └── test_*.py               # Pruebas automatizadas
 │   ├── Dockerfile
 │   └── requirements.txt
-├── frontend/
-│   ├── index.html
-│   ├── styles.css
-│   ├── app.js
-│   ├── nginx.conf
-│   └── Dockerfile
-├── dashboard/                 # Streamlit dashboard
-├── scheduler/                 # Periodic synchronization
+├── frontend/                      # Interfaz web y configuración de Nginx
+├── dashboard/                     # Panel anterior de Streamlit
+├── scheduler/                     # Sincronización periódica
+├── scripts/
+│   └── setup_local.py             # Creación de credenciales locales
+├── docs/                          # Seguridad, cambios y lista de comprobación
 ├── compose.yaml
+├── compose.override.yaml
 └── .gitignore
 ```
 
-## 🚀 Quick start
+## 🚀 Instalación local
 
-### 1. Requirements
+### 1. Requisitos
 
-- Docker Desktop with Docker Compose enabled
-- WSL2 + Ubuntu (recommended on Windows), or another Docker-compatible environment
-- A Twitch Developer application with a **Client ID** and **Client Secret**
-- Enough available memory and disk space to run Ollama and download `qwen2.5:3b`
+- Docker Desktop con Docker Compose, o un entorno compatible.
+- En Windows, se recomienda **WSL2 con Ubuntu**.
+- Una aplicación creada en la [consola de desarrolladores de Twitch](https://dev.twitch.tv/console), con su **Client ID** y **Client Secret**.
+- Memoria RAM y espacio libre suficientes para ejecutar Ollama y descargar el modelo `qwen2.5:3b`.
+- Python 3 instalado en el entorno desde el que se vaya a ejecutar el configurador de credenciales.
 
-### 2. Clone the repository
+### 2. Clonar el repositorio
 
 ```bash
 git clone https://github.com/joysantalola/JoyStream-AI.git
 cd JoyStream-AI
 ```
 
-### 3. Configure environment variables
+### 3. Configurar Twitch y PostgreSQL
 
-Create a local `.env` file at the project root:
+Crea el archivo **`.env`** en la raíz del proyecto. Ejemplo orientativo, **sin introducir credenciales reales en el repositorio**:
 
 ```dotenv
-TWITCH_CLIENT_ID=your_twitch_client_id
-TWITCH_CLIENT_SECRET=your_twitch_client_secret
+TWITCH_CLIENT_ID=tu_identificador_de_aplicacion
+TWITCH_CLIENT_SECRET=tu_secreto_de_aplicacion
 TWITCH_CHANNEL=joysantalola67
-POSTGRES_PASSWORD=choose_a_strong_local_password
+POSTGRES_PASSWORD=elige_una_contrasena_local_segura
 ```
 
-**Never commit `.env` or real credentials to Git.** The existing Twitch integration is currently tailored to the Joysantalola broadcaster ID; adapting it to another channel requires updating the channel-specific configuration in the backend.
+> El proyecto está adaptado al canal `joysantalola67`. La variable del canal, por sí sola, no garantiza que funcione correctamente con cualquier otra cuenta: algunas integraciones pueden requerir adaptar identificadores y autorizaciones.
 
-In the [Twitch Developer Console](https://dev.twitch.tv/console), register this OAuth redirect URL for your application:
+En la consola de Twitch registra esta **URL de redirección de OAuth**, tal como la espera la configuración actual:
 
 ```text
 http://localhost:8000/auth/twitch/callback
 ```
 
-### 4. Build and start the services
+### 4. Generar las credenciales del administrador y del programador
+
+Ejecuta:
 
 ```bash
-docker compose up -d --build
+python3 scripts/setup_local.py
 ```
 
-Inspect service status:
+El configurador crea, si todavía no existen, dos archivos privados:
+
+- `.joystream-auth.env`: sal, derivado de contraseña y secreto para firmar las sesiones del administrador.
+- `.joystream-internal.env`: token independiente utilizado por el servicio `scheduler` para sincronizar datos.
+
+Se pedirá una contraseña local de administrador en la primera ejecución. **Si los archivos ya existen, el configurador los conserva**; no necesitas volver a ejecutar los instaladores antiguos de desarrollo. No publiques estos archivos ni `.env` en GitHub.
+
+### 5. Construir e iniciar los servicios
 
 ```bash
+docker compose config --quiet
+docker compose up -d --build
 docker compose ps
 ```
 
-### 5. Download the local AI model
+Descarga el modelo de IA:
 
 ```bash
 docker compose exec ollama ollama pull qwen2.5:3b
 ```
 
-The model is downloaded once and retained in the Ollama Docker volume. No paid LLM API key is required, although local execution uses your computer's resources.
+La descarga se realiza una vez y el modelo queda almacenado en el volumen de Ollama. No necesitas contratar una API de IA de pago para generar las respuestas locales.
 
-### 6. Authorize the Twitch account
+### 6. Autorizar Twitch mediante OAuth
 
-Open this URL in your browser:
+Abre en el navegador:
 
 **http://localhost:8000/auth/twitch/start**
 
-Log in as the configured broadcaster and approve the permissions required for channel metrics and ads, when available. After authorization, check:
+Inicia sesión con la cuenta que tenga los permisos necesarios y autoriza la aplicación. Para consultar el estado de la autorización:
 
 **http://localhost:8000/auth/twitch/status**
 
-The requested OAuth scopes are:
+Los permisos solicitados en la integración original son:
 
 ```text
 moderator:read:followers
@@ -206,167 +226,179 @@ channel:read:subscriptions
 channel:read:ads
 ```
 
-Some metrics may remain unavailable even with the requested scopes, depending on channel eligibility.
+Algunos datos pueden seguir sin estar disponibles, aunque se hayan concedido permisos, según las condiciones y características del canal.
 
-### 7. Synchronize and open the dashboard
+### 7. Entrar en el panel y sincronizar
 
-First import clips and VODs:
+Abre **http://127.0.0.1:8080/** y, cuando sea necesario, introduce la contraseña local del administrador.
 
-```bash
-curl -X POST http://localhost:8000/sync
-```
+La sincronización de vídeos y clips, la actualización de comunidad y el análisis de Joy AI se realizan desde el panel con una sesión autenticada. **Las llamadas `POST` sin autenticación a `/sync`, `/channel/sync` y `/ai/analyze` deben recibir un error `401`.**
 
-To take a snapshot of available community metrics:
+El servicio `scheduler` ejecuta la sincronización periódica con su propio token interno, sin tener que iniciar sesión en el navegador.
 
-```bash
-curl -X POST http://localhost:8000/channel/sync
-```
-
-Then open:
-
-| Application | URL |
+| Aplicación | Dirección |
 | --- | --- |
-| **Modern web dashboard** | http://localhost:8080 |
-| **Interactive API docs (Swagger)** | http://localhost:8000/docs |
-| **Streamlit dashboard** | http://localhost:8501 |
-| **Health check** | http://localhost:8000/health |
+| Panel web principal | http://127.0.0.1:8080 |
+| Documentación interactiva de la API | http://127.0.0.1:8000/docs |
+| Panel anterior de Streamlit | http://127.0.0.1:8501 |
+| Comprobación de estado | http://127.0.0.1:8080/api/health |
 
-**Note:** the scheduler also runs periodic synchronization, so you do not need to call the synchronization endpoints every time.
+> **Nota sobre la instalación:** los pasos anteriores describen la configuración prevista y están basados en la instalación local del proyecto. Antes de declarar la instalación desde cero completamente validada, hay que comprobarla en un clon limpio, sin reutilizar los archivos privados ni los volúmenes ya existentes.
 
-## 🔌 API overview
+## 🔌 Resumen de la API
 
-All routes below are served by FastAPI on port `8000`. The main frontend accesses the API through the Nginx `/api/` reverse proxy.
+FastAPI sirve las rutas en el puerto `8000`. La interfaz principal las utiliza a través del proxy inverso de Nginx, bajo `/api/`.
 
-| Method | Endpoint | Description |
+| Método | Ruta | Descripción |
 | --- | --- | --- |
-| `GET` | `/health` | Check API status |
-| `GET` | `/twitch/channel` | Public channel profile |
-| `GET` | `/twitch/clips` | Retrieve current Twitch clips |
-| `GET` | `/twitch/videos` | Retrieve Twitch archived videos |
-| `POST` | `/sync` | Import clips and VODs into PostgreSQL |
-| `GET` | `/db/clips` | Stored clips |
-| `GET` | `/db/videos` | Stored VODs |
-| `GET` | `/stats` | Database statistics |
-| `GET` | `/history/clips` | Clip view snapshots |
-| `GET` | `/history/videos` | VOD view snapshots |
-| `GET` | `/growth/clips` | Clip growth calculations |
-| `GET` | `/growth/videos` | VOD growth calculations |
-| `GET` | `/twitch/live` | Current stream status |
-| `GET` | `/streams/history` | Live audience samples |
-| `GET` | `/analytics/sessions` | Aggregated stream sessions |
-| `GET` | `/analytics/games` | Game-based live analytics |
-| `GET` | `/channel/current` | Current community metrics |
-| `POST` | `/channel/sync` | Save community metrics snapshot |
-| `GET` | `/channel/history` | Community growth history |
-| `GET` | `/enhanced/catalog` | Profile, clip games and VOD category evidence |
-| `GET` | `/enhanced/ads` | Available Twitch advertising schedule |
-| `POST` | `/ai/analyze` | Ask the local AI assistant |
-| `GET` | `/auth/twitch/start` | Start Twitch OAuth |
-| `GET` | `/auth/twitch/status` | Check whether user tokens are stored |
+| `GET` | `/health` | Comprueba el estado de la API. |
+| `GET` | `/twitch/channel` | Consulta el perfil del canal. |
+| `GET` | `/twitch/clips` | Consulta clips de Twitch. |
+| `GET` | `/twitch/videos` | Consulta vídeos archivados de Twitch. |
+| `POST` | `/sync` | Importa clips y vídeos en PostgreSQL. **Requiere autenticación.** |
+| `GET` | `/db/clips` | Recupera clips almacenados. |
+| `GET` | `/db/videos` | Recupera vídeos almacenados. |
+| `GET` | `/stats` | Obtiene estadísticas de la base de datos. |
+| `GET` | `/history/clips` | Consulta históricos de visualizaciones de clips. |
+| `GET` | `/history/videos` | Consulta históricos de visualizaciones de vídeos. |
+| `GET` | `/growth/clips` | Calcula la evolución de clips. |
+| `GET` | `/growth/videos` | Calcula la evolución de vídeos. |
+| `GET` | `/twitch/live` | Consulta si el canal está en directo. |
+| `GET` | `/streams/history` | Recupera muestras de audiencia en directo. |
+| `GET` | `/analytics/sessions` | Consulta estadísticas agregadas por emisión. |
+| `GET` | `/analytics/games` | Consulta estadísticas por videojuego. |
+| `GET` | `/channel/current` | Consulta las métricas recientes de la comunidad. |
+| `POST` | `/channel/sync` | Guarda un registro de la comunidad. **Requiere autenticación.** |
+| `GET` | `/channel/history` | Consulta el histórico de seguidores y suscriptores. |
+| `GET` | `/enhanced/catalog` | Recupera metadatos enriquecidos y evidencias de categorías. |
+| `GET` | `/enhanced/ads` | Consulta la información de programación de anuncios disponible. |
+| `POST` | `/ai/analyze` | Envía una pregunta a Joy AI. **Requiere autenticación.** |
+| `GET` | `/auth/twitch/start` | Inicia la autorización OAuth de Twitch. |
+| `GET` | `/auth/twitch/status` | Comprueba el estado de los tokens OAuth. |
 
-### Example: ask the local AI
+### Ejemplo de uso de Joy AI
+
+Abre el panel web, inicia sesión y utiliza el asistente Joy AI. Algunas preguntas posibles:
+
+- «¿Cuántos seguidores tengo actualmente?»
+- «Compara mis últimos tres directos».
+- «¿Qué videojuego tiene mejor media de espectadores?»
+- «¿Qué horario parece funcionar mejor según los registros disponibles?»
+
+La IA debe distinguir los hechos registrados de las hipótesis y advertir de las limitaciones de los datos.
+
+## 🗄️ Recopilación y almacenamiento de datos
+
+El proyecto conserva distintas clases de información en PostgreSQL:
+
+- **`clips` y `videos`**: metadatos y visualizaciones de clips y vídeos.
+- **`view_history`**: registros históricos de visualizaciones con fecha y hora.
+- **`stream_samples`**: muestras de espectadores, videojuegos y marcas de tiempo durante los directos.
+- **`channel_metrics`**: registros históricos de seguidores y datos de suscripciones disponibles.
+- **`oauth_tokens`**: credenciales de autorización de Twitch para las operaciones que requieren permisos.
+
+La API de enriquecimiento relaciona videojuegos y emisiones a partir de las evidencias disponibles. No siempre es posible determinar con certeza el videojuego de un vídeo archivado.
+
+## 🤖 Cómo funciona Joy AI
+
+1. FastAPI consulta estadísticas y metadatos seleccionados de PostgreSQL.
+2. Python prepara un contexto estructurado con clips, vídeos, directos y métricas de la comunidad.
+3. El asistente procesa la pregunta con los cálculos y, cuando corresponde, con **Ollama y `qwen2.5:3b`**, ejecutados localmente.
+4. Devuelve un análisis en español, diferenciando resultados medidos, recomendaciones y limitaciones.
+
+**Privacidad y costes:** no se utiliza una API de lenguaje de pago para la generación local de respuestas. La conexión a Twitch sigue necesitando acceso a Internet. Las conclusiones de la IA deben contrastarse con las métricas originales.
+
+## ✅ Pruebas y resolución de problemas
+
+Ejecuta las pruebas unitarias:
 
 ```bash
-curl -X POST http://localhost:8000/ai/analyze \
-  -H 'Content-Type: application/json' \
-  -d '{"question":"Analiza mis clips y dime qué puedo mejorar."}'
+docker compose exec backend python -m unittest discover -s app -p 'test_*.py' -q
 ```
 
-The assistant is instructed to distinguish measured facts from hypotheses, not invent missing statistics, and clearly state relevant data limitations.
+En la instalación utilizada para preparar esta versión se superaron **72 pruebas**. El número puede cambiar en futuras modificaciones.
 
-## 🗄️ Data collection and storage
-
-The application stores several types of data:
-
-- **`clips` / `videos`:** current stored content metadata and view counts.
-- **`view_history`:** time-stamped view-count snapshots for clips and VODs.
-- **`stream_samples`:** observed audience counts, games and timestamps during live broadcasts.
-- **`channel_metrics`:** time-stamped follower totals and available subscriber figures.
-- **`oauth_tokens`:** Twitch user authorization credentials for protected endpoints.
-
-The enrichment API resolves game names and links some VODs to evidence from observed live sessions or associated clips; the category may still remain unknown. The metadata enrichment does not imply that every VOD has a definitive game classification.
-
-## 🤖 Local AI: how it works
-
-1. FastAPI gathers statistics and selected content metadata from PostgreSQL.
-2. It builds a compact, structured context describing clips, VODs, live sessions and community measurements.
-3. The context and a question are sent to **Ollama**, running `qwen2.5:3b` locally.
-4. The assistant returns a Spanish-language analysis with conclusions, recommendations and limitations.
-
-**Privacy / cost:** no paid external LLM API is used. Twitch API requests still connect to Twitch, and local AI answers should be verified against the underlying statistics.
-
-## ✅ Tests and troubleshooting
-
-Run the Python unit tests:
+Comandos útiles para el diagnóstico:
 
 ```bash
-docker compose exec backend python -m unittest app.test_ai -v
-```
-
-Useful diagnostic commands:
-
-```bash
-# Check running services
+# Ver los contenedores
 docker compose ps -a
 
-# Follow backend logs
+# Consultar los últimos mensajes del backend
 docker compose logs --tail=100 backend
 
-# Follow frontend logs
+# Consultar los últimos mensajes del frontend
 docker compose logs --tail=100 frontend
 
-# Check Python syntax
+# Comprobar el programador de sincronizaciones
+docker compose logs --tail=50 scheduler
+
+# Comprobar la sintaxis de los módulos principales
 docker compose exec backend python -m py_compile app/main.py app/ai.py
 
-# Check API availability
-curl http://localhost:8000/health
+# Comprobar el estado de la API a través del frontend
+curl http://127.0.0.1:8080/api/health
 ```
 
-Common issues:
-
-| Symptom | What to check |
+| Síntoma | Qué revisar |
 | --- | --- |
-| `Connection reset by peer` from FastAPI | Backend logs; Python import/startup errors |
-| `NameError: app is not defined` | Register FastAPI routers **after** `app = FastAPI(...)` |
-| `KeyError` when returning AI results | Nested AI context keys and response assembly |
-| Streamlit `SyntaxError: expected except or finally` | Indentation of `try` / `except` blocks |
-| Twitch `401` / `403` | Token validity, OAuth scopes and channel eligibility |
-| Ollama timeout | Model downloaded, container health and available machine resources |
+| `Connection reset by peer` en FastAPI | Registros del backend y errores durante el arranque. |
+| `NameError: app is not defined` | Registro de rutas después de crear la instancia de FastAPI. |
+| `KeyError` durante una respuesta de IA | Estructura del contexto y preparación de la respuesta. |
+| `SyntaxError` en Streamlit | Sangrado de bloques `try` y `except`. |
+| Error `401` o `403` de Twitch | Validez de tokens OAuth, permisos y disponibilidad de funciones. |
+| Error `401` en una operación sensible del panel | Iniciar sesión con la contraseña local. |
+| El programador no sincroniza | Comprobar que existe `.joystream-internal.env` y revisar los registros de `scheduler`. |
+| Tiempo de espera agotado en Ollama | Modelo descargado, contenedor activo y recursos disponibles. |
 
-> Avoid `docker compose down -v` unless you intentionally want to remove persisted PostgreSQL and Ollama volumes.
+No elimines los volúmenes de PostgreSQL y Ollama para resolver un fallo de forma impulsiva: podrías perder datos o tener que volver a descargar el modelo.
 
-## 🔐 Security considerations
+## 🔐 Seguridad
 
-**This repository is a local-development project, not a production-hardened service.**
+**JoyStream AI v1.0 está diseñado para uso local; no es una plataforma endurecida para producción.**
 
-- Keep `.env`, API secrets and personal access tokens out of Git.
-- Keep database and Ollama services on the internal Docker network.
-- The current OAuth implementation persists user tokens in PostgreSQL; a production deployment would require encryption at rest and stronger access controls.
-- Some API endpoints perform writes or expose channel analytics without application-level user authentication. **Do not expose the API or its reverse proxy publicly as-is.**
-- Review permissions, HTTPS, authentication, CORS/reverse-proxy policies, rate limiting and secret management before any public deployment.
-- Never include real Twitch or GitHub tokens in screenshots, issues, commits or documentation.
+- Los puertos de la aplicación están vinculados a la interfaz local (`127.0.0.1`) en la configuración actual.
+- El inicio de sesión protege las operaciones `POST /sync`, `POST /channel/sync` y `POST /ai/analyze` mediante una sesión local.
+- El programador utiliza un token interno independiente, limitado a las operaciones de sincronización.
+- Las cookies de sesión están pensadas para HTTP local; **no sustituyen una configuración HTTPS segura** para un despliegue público.
+- Algunas rutas `GET` y la API accesible directamente en el puerto local pueden no requerir inicio de sesión.
+- Los controles de `Origin` y `Sec-Fetch-Site` son capas adicionales de protección, **no mecanismos de autenticación**.
+- `.env`, `.joystream-auth.env` y `.joystream-internal.env` no deben publicarse ni compartirse.
+- Los tokens OAuth pueden almacenarse en PostgreSQL; un despliegue público exigiría medidas adicionales, incluido un almacenamiento más seguro de secretos.
+- Antes de cualquier publicación en Internet sería necesario revisar HTTPS, acceso de usuarios, permisos, gestión de secretos, políticas del proxy y límites de peticiones.
 
-## 🗺️ Roadmap
+Consulta [la documentación de seguridad](docs/SECURITY.md).
 
-- [x] Twitch Helix integration for clips, VODs and channel metadata
-- [x] PostgreSQL persistence and historical view snapshots
-- [x] Scheduled synchronization and live-viewer polling
-- [x] Follower/subscriber snapshots and OAuth integration
-- [x] Game-category enrichment and ad schedule information
-- [x] Responsive HTML/CSS/JavaScript dashboard
-- [x] Ollama-powered local analytics assistant
-- [x] Initial unit tests
-- [ ] Validate the live monitor and session analytics during a real broadcast
-- [ ] Add automated integration tests and data-quality checks
-- [ ] Strengthen authentication and secret storage before public hosting
-- [ ] Add screenshots and a full technical setup/operations guide
+## 🗺️ Próximos pasos
 
-> **Not planned for now:** per-stream ad-break event tracking. The current advertising feature reports scheduling data only.
+- [x] Integración con Twitch para clips, VOD y metadatos del canal.
+- [x] Persistencia en PostgreSQL e históricos de visualizaciones.
+- [x] Sincronización programada y monitorización de espectadores.
+- [x] Seguimiento de seguidores y suscripciones disponibles.
+- [x] Enriquecimiento de categorías y consulta de programación publicitaria.
+- [x] Panel web adaptable.
+- [x] Asistente con IA local y comparaciones de emisiones.
+- [x] Autenticación local y token interno para el programador.
+- [x] Pruebas unitarias de la lógica de análisis.
+- [ ] Comprobar la instalación completa en un clon limpio.
+- [ ] Ampliar las pruebas de integración y calidad de datos.
+- [ ] Mejorar la seguridad antes de considerar un alojamiento público.
+- [ ] Añadir capturas de pantalla y completar la guía operativa.
 
-## 👨‍💻 Author
+> **Fuera del alcance actual:** reconstruir todos los cortes publicitarios realizados en cada directo o calcular ingresos publicitarios históricos.
+
+## 📋 Documentación de la versión
+
+- [Historial de cambios](docs/CHANGELOG.md)
+- [Seguridad](docs/SECURITY.md)
+- [Lista de comprobación de publicación](docs/RELEASE_CHECKLIST.md)
+
+La etiqueta `v1.0.0` debe crearse únicamente después de completar las comprobaciones de publicación, incluida la revisión del repositorio y de posibles credenciales incrustadas.
+
+## 👨‍💻 Autor
 
 **Oleguer — [Joysantalola](https://www.twitch.tv/joysantalola67)**  
-IT Support & Systems Technician · ASIX · AI & Big Data
+Técnico de Soporte y Sistemas · ASIX · Especialización en IA y Big Data
 
 - **GitHub:** [github.com/joysantalola](https://github.com/joysantalola)
 - **Twitch:** [twitch.tv/joysantalola67](https://www.twitch.tv/joysantalola67)
@@ -376,8 +408,8 @@ IT Support & Systems Technician · ASIX · AI & Big Data
 
 <div align="center">
 
-**Built for learning, experimentation and real-world Twitch analytics.**
+**Desarrollado para aprender, experimentar y analizar datos reales de Twitch.**
 
-*Independent project. Not affiliated with or endorsed by Twitch.*
+*Proyecto independiente. No está afiliado a Twitch ni cuenta con su respaldo.*
 
 </div>

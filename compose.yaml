@@ -6,6 +6,8 @@ services:
       - "127.0.0.1:8000:8000"
     env_file:
       - .env
+      - ./.joystream-auth.env
+      - ./.joystream-internal.env
     environment:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5:3b
@@ -48,6 +50,8 @@ services:
 
 
   scheduler:
+    env_file:
+      - ./.joystream-internal.env
     build: ./scheduler
     environment:
       API_URL: http://backend:8000

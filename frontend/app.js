@@ -1,252 +1,583 @@
 'use strict';
 
+
+
 const PATHS={resumen:'Resumen',clips:'Clips',vod:'Vídeos / VOD',directos:'Directos',comunidad:'Comunidad',ia:'Asistente IA',sistema:'Sistema',anuncios:'Publicidad'};
+
 const state={page:'resumen',cache:{},errors:{},messages:[],selectedClip:'',selectedStream:'',clipFilter:'',clipSearch:'',dateFilter:'all',vodSearch:''};
+
 const $=sel=>document.querySelector(sel);
+
 const root=$('#page-root');
+
 const fmt=n=>typeof n==='number'&&Number.isFinite(n)?new Intl.NumberFormat('es-ES').format(n):'—';
+
 const number=n=>Number.isFinite(Number(n))?Number(n):0;
+
 const text=x=>String(x??'');
+
 const esc=x=>text(x).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
 const date=x=>{if(!x)return '—';const d=new Date(x);return Number.isNaN(+d)?'—':new Intl.DateTimeFormat('es-ES',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(d)};
+
 const shortDate=x=>{if(!x)return '—';const d=new Date(x);return Number.isNaN(+d)?'—':new Intl.DateTimeFormat('es-ES',{day:'2-digit',month:'short'}).format(d)};
+
 const list=x=>Array.isArray(x)?x:[];
+
 const withinPeriod=item=>{if(state.dateFilter==='all')return true;const value=item?.created_at;if(!value)return false;const ts=new Date(value).getTime();return Number.isFinite(ts)&&ts>=Date.now()-Number(state.dateFilter)*86400000};
+
 function dateToolbar(){return `<label class="date-filter-label" for="date-filter">Periodo de publicación</label><select id="date-filter" aria-label="Periodo de publicación">${[['all','Todas las fechas'],['7','Últimos 7 días'],['30','Últimos 30 días'],['90','Últimos 90 días'],['365','Último año']].map(([val,label])=>`<option value="${val}" ${state.dateFilter===val?'selected':''}>${label}</option>`).join('')}</select>`}
+
 const total=(items,key)=>list(items).reduce((s,x)=>s+number(x?.[key]),0);
+
 const view=(id)=>document.getElementById(id);
+
 function toast(message){const el=$('#toast');el.textContent=message;el.classList.add('visible');clearTimeout(toast._timer);toast._timer=setTimeout(()=>el.classList.remove('visible'),5000)}
+
 async function api(path,{method='GET',data,timeout=25000}={}){const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),timeout);try{const r=await fetch('/api'+path,{method,headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined,signal:ctrl.signal});if(!r.ok){let detail='';try{const j=await r.json();detail=typeof j.detail==='string'?j.detail:''}catch{}throw new Error(`${r.status} ${detail||r.statusText}`)}return await r.json()}finally{clearTimeout(timer)}}
+
 async function load(key,path){try{state.cache[key]=await api(path);delete state.errors[key]}catch(e){state.errors[key]=e.message;state.cache[key]=null}}
+
 async function refresh(){const keys=[['clips','/db/clips'],['videos','/db/videos'],['stats','/stats'],['clipHistory','/history/clips'],['growth','/growth/clips'],['streamHistory','/streams/history'],['sessions','/analytics/sessions'],['games','/analytics/games'],['community','/channel/history'],['live','/twitch/live'],['catalog','/enhanced/catalog'],['ads','/enhanced/ads']];await Promise.all(keys.map(([key,path])=>load(key,path)));render();const profile=catalog().profile||{};const avatar=$('.avatar');if(avatar&&profile.profile_image_url){avatar.innerHTML=`<img src="${esc(profile.profile_image_url)}" alt="Perfil de Joysantalola">`;}checkBackend()}
+
 function catalog(){return state.cache.catalog||{clips:{},videos:{},profile:{},game_names:{}}}
+
 function clipGame(c){return catalog().clips?.[c.id]?.game_name||'Categoría desconocida'}
+
 function vodGames(v){const r=catalog().videos?.[v.id];return r?.games?.length?r.games.join(', '):'Sin categoría confirmada'}
+
 function vodConfidence(v){const src=catalog().videos?.[v.id]?.source;return src==='stream_samples'?'Observado en directo':src==='associated_clips'?'Inferido por clips':'Desconocido'}
+
 function profileBar(){const p=catalog().profile||{};return `<div class="profile-banner">${p.profile_image_url?`<img src="${esc(p.profile_image_url)}" alt="Foto de perfil del canal" referrerpolicy="no-referrer">`:''}<div><strong>${esc(p.display_name||'Joysantalola')}</strong><p>${esc(p.description||'Canal de Twitch')}</p><small>Perfil de Twitch · datos reales</small></div></div>`}
+
 function array(key){return list(state.cache[key])}
+
 function errorFor(keys){const err=keys.filter(k=>state.errors[k]).map(k=>`${k}: ${state.errors[k]}`);return err.length?`<div class="notice error">No se pudo cargar alguna información (${esc(err.join(' · '))}). Comprueba FastAPI desde la página Sistema.</div>`:''}
+
 function head(title,subtitle,eyebrow='ANALÍTICA DE TWITCH'){return `<div class="page-head"><div><p class="eyebrow">${esc(eyebrow)}</p><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div><div class="date-caption">Joysantalola · ${esc(new Intl.DateTimeFormat('es-ES',{dateStyle:'medium'}).format(new Date()))}</div></div>`}
+
 function metric(label,val,icon,note=''){return `<div class="metric"><div class="metric-icon">${icon}</div><div class="metric-label">${esc(label)}</div><div class="metric-value">${esc(val)}</div>${note?`<div class="metric-note">${esc(note)}</div>`:''}</div>`}
+
 function panel(title,content,extra=''){return `<section class="panel"><div class="panel-header"><h2>${esc(title)}</h2>${extra}</div>${content}</section>`}
+
 function empty(msg){return `<div class="empty"><strong>Sin datos todavía</strong>${esc(msg)}</div>`}
+
 function table(headers,rows){if(!rows.length)return empty('Sin registros disponibles.');return `<div class="table-wrap"><table class="data"><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`}
+
 function link(url){if(!/^https:\/\//i.test(text(url)))return '—';return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Abrir ↗</a>`}
+
 function bars(items,labelFn,valueFn){if(!items.length)return empty('Sin resultados para este gráfico.');const max=Math.max(1,...items.map(valueFn));return `<div class="bar-stack">${items.map(x=>`<div class="bar-row"><div class="bar-name" title="${esc(labelFn(x))}">${esc(labelFn(x))}</div><div class="track"><div class="track-fill" style="width:${Math.max(.5,(number(valueFn(x))/max)*100)}%"></div></div><div class="bar-value">${fmt(number(valueFn(x)))}</div></div>`).join('')}</div>`}
+
 function lineChart(points,{key='view_count',dateKey='captured_at'}={}){const p=list(points).filter(x=>x?.[dateKey]&&Number.isFinite(Number(x?.[key]))).sort((a,b)=>new Date(a[dateKey])-new Date(b[dateKey]));if(!p.length)return empty('Todavía no hay mediciones para mostrar.');const W=800,H=250,left=48,right=20,top=18,bottom=36,iw=W-left-right,ih=H-top-bottom,min=0,max=Math.max(1,...p.map(x=>number(x[key]))),c=p.map((x,i)=>({x:left+(p.length===1?.5:i/(p.length-1))*iw,y:top+ih-number(x[key])/max*ih}));const path=c.map((pt,i)=>`${i?'L':'M'} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(' ');const area=path+` L ${c[c.length-1].x} ${top+ih} L ${c[0].x} ${top+ih} Z`;const grid=[0,.25,.5,.75,1].map(f=>`<line class="chart-grid" x1="${left}" y1="${top+ih*(1-f)}" x2="${W-right}" y2="${top+ih*(1-f)}"/><text class="chart-label" x="${left-8}" y="${top+ih*(1-f)+4}" text-anchor="end">${fmt(Math.round(max*f))}</text>`).join('');const dots=c.length<55?c.map((pt,i)=>`<circle class="dot" cx="${pt.x}" cy="${pt.y}" r="4"><title>${esc(date(p[i][dateKey]))}: ${fmt(number(p[i][key]))}</title></circle>`).join(''):'';return `<svg class="svg-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico histórico de visualizaciones"><defs><linearGradient id="chartfade" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#956cff" stop-opacity=".33"/><stop offset="100%" stop-color="#956cff" stop-opacity="0"/></linearGradient></defs>${grid}<path class="chart-fill" d="${area}"/><path class="chart-line" d="${path}"/>${dots}<text class="chart-label" x="${left}" y="${H-8}">${esc(shortDate(p[0][dateKey]))}</text><text class="chart-label" x="${W-right}" y="${H-8}" text-anchor="end">${esc(shortDate(p[p.length-1][dateKey]))}</text></svg>`}
+
 function summarize(){const clips=array('clips'),videos=array('videos'),sessions=array('sessions'),community=array('community');const latest=community.at(-1);const top=[...clips].sort((a,b)=>number(b.view_count)-number(a.view_count)).slice(0,5);const games=[...new Set(clips.map(clipGame).filter(g=>g!=='Categoría desconocida'))];return head('Tu canal, en perspectiva','Estadísticas centralizadas por juego y evolución del contenido.')+profileBar()+errorFor(['clips','videos','community','catalog'])+`<div class="metric-grid">${metric('Clips guardados',fmt(clips.length),'▣')}${metric('Vistas de clips',fmt(total(clips,'view_count')),'◉')}${metric('VOD guardados',fmt(videos.length),'▸')}${metric('Categorías de clips',fmt(games.length),'🎮')}</div><div class="cards-2">${panel('Clips más vistos',bars(top,x=>`${clipGame(x)} · ${x.title}`,x=>number(x.view_count)))}${panel('Comunidad',`<div class="detail-cols"><div class="detail-box"><span>Seguidores</span><strong>${latest?fmt(number(latest.followers)):'—'}</strong></div><div class="detail-box"><span>Suscriptores</span><strong>${latest?.subscribers!=null?fmt(number(latest.subscribers)):'—'}</strong></div><div class="detail-box"><span>Directos monitorizados</span><strong>${fmt(sessions.length)}</strong></div></div><p class="stat-meta">Vistas de clips y VOD no equivalen a espectadores simultáneos.</p>`)}</div>${panel('VOD recientes y categorías',table(['Vídeo','Categorías detectadas','Evidencia','Vistas'],[...videos].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,10).map(x=>`<tr><td class="trim">${esc(x.title)}</td><td>${esc(vodGames(x))}</td><td><small>${esc(vodConfidence(x))}</small></td><td>${fmt(number(x.view_count))}</td></tr>`)))} `}
+
 function clipsPage(){const clips=array('clips'),history=array('clipHistory'),growth=array('growth');const games=[...new Set(clips.map(clipGame))].sort();const filtered=clips.filter(x=>withinPeriod(x)&&(!state.clipFilter||clipGame(x)===state.clipFilter)&&(!state.clipSearch||text(x.title).toLowerCase().includes(state.clipSearch.toLowerCase())));const best=[...clips].sort((a,b)=>number(b.view_count)-number(a.view_count)).slice(0,10);const chosen=state.selectedClip&&clips.some(x=>x.id===state.selectedClip)?state.selectedClip:best[0]?.id;state.selectedClip=chosen||'';const byGame={};for(const c of clips){const g=clipGame(c);byGame[g]=(byGame[g]||0)+number(c.view_count)}const groups=Object.entries(byGame).map(([game,views])=>({game,views})).sort((a,b)=>b.views-a.views);return head('Biblioteca de clips','Categorías oficiales de Twitch y evolución de visualizaciones.')+errorFor(['clips','catalog'])+`<div class="metric-grid">${metric('Clips',fmt(clips.length),'▣')}${metric('Visualizaciones',fmt(total(clips,'view_count')),'◉')}${metric('Juegos identificados',fmt(games.filter(x=>x!=='Categoría desconocida').length),'🎮')}${metric('Clips 100+ vistas',fmt(clips.filter(x=>number(x.view_count)>=100).length),'✦')}</div><div class="cards-2">${panel('Visualizaciones por juego',bars(groups,x=>x.game,x=>x.views))}${panel('Evolución de un clip',`<div class="toolbar"><select id="clip-choice">${clips.map(x=>`<option value="${esc(x.id)}" ${x.id===chosen?'selected':''}>${esc(x.title?.slice(0,55))}</option>`).join('')}</select></div>${lineChart(history.filter(x=>x.content_id===chosen))}`)}</div>${panel('Clips registrados',`<div class="toolbar"><input id="clip-search" placeholder="Buscar clip..." value="${esc(state.clipSearch)}">${dateToolbar()}<select id="clip-filter"><option value="">Todos los juegos</option>${games.map(g=>`<option value="${esc(g)}" ${g===state.clipFilter?'selected':''}>${esc(g)}</option>`).join('')}</select></div>${table(['Título','Juego','Fecha','Vistas','Crecimiento','Enlace'],filtered.sort((a,b)=>number(b.view_count)-number(a.view_count)).map(x=>{const growthRow=growth.find(g=>g.content_id===x.id);return `<tr><td class="trim">${esc(x.title)}</td><td>${esc(clipGame(x))}</td><td>${date(x.created_at)}</td><td>${fmt(number(x.view_count))}</td><td>${growthRow?'+'+fmt(number(growthRow.growth)):'—'}</td><td>${link(x.url)}</td></tr>`}))}`)}`}
+
 function vodPage(){const videos=array('videos');const best=[...videos].sort((a,b)=>number(b.view_count)-number(a.view_count)).slice(0,10);const classified=videos.filter(v=>vodConfidence(v)!=='Desconocido').length;const filteredVods=videos.filter(v=>withinPeriod(v)&&text(v.title).toLowerCase().includes(state.vodSearch.toLowerCase()));return head('Vídeos y VOD','Categorías observadas durante el directo o inferidas a partir de clips asociados.')+errorFor(['videos','catalog'])+`<div class="metric-grid">${metric('VOD registrados',fmt(videos.length),'▸')}${metric('Vistas acumuladas',fmt(total(videos,'view_count')),'◉')}${metric('Con categoría respaldada',fmt(classified),'🎮')}${metric('Sin categoría',fmt(videos.length-classified),'?')}</div><div class="cards-equal">${panel('VOD más vistos',bars(best.slice(0,7),x=>x.title,x=>number(x.view_count)))}${panel('Origen de categorías',`<div class="notice"><strong>Observado en directo:</strong> una o varias categorías aparecieron en muestras guardadas del stream.<br><strong>Inferido por clips:</strong> clips asociados a ese VOD indican el juego.<br><strong>Desconocido:</strong> Twitch no devuelve directamente el juego de VOD y faltan pruebas.</div>`)}</div>${panel('Biblioteca de VOD',`<div class="toolbar"><input id="vod-search" placeholder="Buscar vídeo..." aria-label="Buscar vídeo" value="${esc(state.vodSearch)}">${dateToolbar()}</div>${table(['Vídeo','Juego(s)','Fuente','Fecha','Vistas','Enlace'],filteredVods.map(v=>`<tr><td class="trim">${esc(v.title)}</td><td>${esc(vodGames(v))}</td><td><small>${esc(vodConfidence(v))}</small></td><td>${date(v.created_at)}</td><td>${fmt(number(v.view_count))}</td><td>${link(v.url)}</td></tr>`))}`)}`}
+
 // PASO 23: Analítica avanzada de directos (frontend local)
+
 const JOY_TIMEZONE = 'Europe/Madrid';
+
 function joyHour(value, withSeconds=false){
+
   const d=new Date(value);
+
   if(!Number.isFinite(d.getTime()))return '—';
+
   return new Intl.DateTimeFormat('es-ES',{
+
     timeZone:JOY_TIMEZONE,hour:'2-digit',minute:'2-digit',
+
     ...(withSeconds?{second:'2-digit'}:{})
+
   }).format(d);
+
 }
+
 function joyDuration(minutes){
+
   if(!Number.isFinite(Number(minutes)))return '—';
+
   const n=Math.max(0,Math.round(Number(minutes)));
+
   return `${Math.floor(n/60)} h ${String(n%60).padStart(2,'0')} min`;
+
 }
+
 function joySessionName(s){return `${shortDate(s.started_at)} · ${s.games_label||'Sin categoría'} · ${joyHour(s.started_at)}`}
+
 function joyViewerTimeline(samples){
+
   const clean=list(samples).filter(s=>s&&Number.isFinite(new Date(s.captured_at).getTime())&&s.viewer_count!=null&&Number.isFinite(Number(s.viewer_count))).sort((a,b)=>new Date(a.captured_at)-new Date(b.captured_at));
+
   if(!clean.length)return empty('No hay muestras de audiencia de este directo.');
+
   const W=800,H=290,L=48,R=18,T=18,B=54;
+
   const wi=W-L-R,hi=H-T-B;
+
   const times=clean.map(x=>new Date(x.captured_at).getTime());
+
   const start=times[0],end=times.at(-1),span=Math.max(1,end-start);
+
   const peak=Math.max(1,...clean.map(s=>Number(s.viewer_count)));
+
   const upper=Math.max(1,Math.ceil(peak));
+
   const points=clean.map((s,i)=>({
+
     x:L+((times[i]-start)/span)*wi,
+
     y:T+hi*(1-Number(s.viewer_count)/upper),
+
     viewers:Number(s.viewer_count),
+
     time:s.captured_at
+
   }));
+
   const path=points.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+
   const area=path+` L${points.at(-1).x.toFixed(2)},${T+hi} L${points[0].x.toFixed(2)},${T+hi} Z`;
+
   const yticks=[0,.25,.5,.75,1].map(f=>{
+
     const y=T+hi*(1-f);return `<line class="chart-grid" x1="${L}" y1="${y}" x2="${W-R}" y2="${y}"/><text class="chart-label" x="${L-9}" y="${y+4}" text-anchor="end">${fmt(Math.round(upper*f))}</text>`;
+
   }).join('');
+
   const ticks=Array.from({length:5},(_,i)=>{
+
     const f=i/4,ts=start+(end-start)*f,x=L+wi*f;
+
     return `<text class="chart-label" x="${x}" y="${H-22}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${esc(joyHour(new Date(ts).toISOString()))}</text>`;
+
   }).join('');
+
   const dots=points.length<40?points.map((p,i)=>`<circle class="joy-point" cx="${p.x}" cy="${p.y}" r="3"><title>${esc(joyHour(p.time,true))}: ${fmt(p.viewers)} espectadores</title></circle>`).join(''):'';
+
   const labels=clean.map(x=>({ts:new Date(x.captured_at).getTime(),v:Number(x.viewer_count)}));
+
   // Los datos vienen del backend. Solo guardamos valores numéricos y timestamps.
+
   const dataset=encodeURIComponent(JSON.stringify(labels));
+
   return `<div class="joy-timeline" data-series="${dataset}"><svg class="joy-timeline-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Evolución real de espectadores con horas de Madrid"><defs><linearGradient id="joyLiveGradient" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#aa83ff" stop-opacity=".38"/><stop offset="100%" stop-color="#aa83ff" stop-opacity="0"/></linearGradient></defs>${yticks}<path fill="url(#joyLiveGradient)" d="${area}"/><path class="chart-line" d="${path}"/>${dots}${ticks}<line class="joy-crosshair" x1="0" x2="0" y1="${T}" y2="${T+hi}" visibility="hidden"/></svg><div class="joy-tooltip" hidden></div><div class="joy-timeline-foot"><span>Horario: España peninsular</span><span>${fmt(clean.length)} muestras · ${joyHour(clean[0].captured_at)}–${joyHour(clean.at(-1).captured_at)}</span></div></div>`;
+
 }
+
 function joyBindTimeline(){
+
   const wrap=view('joy-timeline-slot')?.querySelector('.joy-timeline');
+
   if(!wrap)return;
+
   const svg=wrap.querySelector('svg'),tip=wrap.querySelector('.joy-tooltip'),cross=wrap.querySelector('.joy-crosshair');
+
   let series=[];
+
   try{series=JSON.parse(decodeURIComponent(wrap.dataset.series||''))}catch{return}
+
   if(!series.length)return;
+
   const W=800,L=48,R=18;
+
   const hide=()=>{tip.hidden=true;cross.setAttribute('visibility','hidden')};
+
   svg.addEventListener('pointermove',e=>{
+
     const rect=svg.getBoundingClientRect();
+
     if(!rect.width)return;
+
     const x=(e.clientX-rect.left)/rect.width*W;
+
     const start=series[0].ts,end=series.at(-1).ts;
+
     const target=start+(Math.max(L,Math.min(W-R,x))-L)/(W-L-R)*(end-start);
+
     let nearest=series[0];
+
     for(const point of series)if(Math.abs(point.ts-target)<Math.abs(nearest.ts-target))nearest=point;
+
     const px=L+((nearest.ts-start)/Math.max(1,end-start))*(W-L-R);
+
     cross.setAttribute('x1',px);cross.setAttribute('x2',px);cross.setAttribute('visibility','visible');
+
     tip.hidden=false;
+
     tip.textContent=`${joyHour(new Date(nearest.ts).toISOString(),true)} · ${fmt(nearest.v)} espectadores`;
+
     tip.style.left=`${Math.max(12,Math.min(rect.width-170,px/W*rect.width))}px`;
+
   });
+
   svg.addEventListener('pointerleave',hide);
+
   svg.addEventListener('pointercancel',hide);
+
 }
+
 function joySessionComparison(sessions){
+
   if(sessions.length<2)return `<div class="notice">Ya tienes un directo guardado. Cuando monitorices otro, podrás compararlos aquí sin perder las estadísticas actuales.</div>`;
+
   const primary=sessions.find(x=>x.stream_id===state.selectedStream)||sessions[0];
+
   const other=sessions.filter(x=>x.stream_id!==primary.stream_id);
+
   const secondary=other.find(x=>x.stream_id===state.compareStream)||other[0];
+
   state.compareStream=secondary.stream_id;
+
   const metrics=[
+
     ['Media de espectadores','average_viewers'],
+
     ['Pico de espectadores','peak_viewers'],
+
     ['Muestras registradas','measurements'],
+
     ['Minutos observados','observed_minutes']
+
   ];
+
   const cols=metrics.map(([label,key])=>{
+
     const a=number(primary[key]),b=number(secondary[key]),max=Math.max(1,a,b);
+
     return `<div class="joy-compare-metric"><strong>${esc(label)}</strong><div class="joy-compare-row"><span>A · ${esc(fmt(a))}</span><div class="joy-compare-track"><div class="joy-compare-fill a" style="width:${a/max*100}%"></div></div></div><div class="joy-compare-row"><span>B · ${esc(fmt(b))}</span><div class="joy-compare-track"><div class="joy-compare-fill b" style="width:${b/max*100}%"></div></div></div></div>`;
+
   }).join('');
+
   return `<div class="joy-compare-top"><div><span class="joy-compare-badge a">A</span> ${esc(joySessionName(primary))}</div><label class="joy-compare-select"><span class="joy-compare-badge b">B</span><select id="joy-compare-choice" aria-label="Segundo directo para comparar">${other.map(x=>`<option value="${esc(x.stream_id)}" ${x.stream_id===secondary.stream_id?'selected':''}>${esc(joySessionName(x))}</option>`).join('')}</select></label></div><div class="joy-compare-grid">${cols}</div><p class="stat-meta">Comparativa descriptiva de muestras observadas. Diferentes duraciones y horarios pueden influir en los resultados.</p>`;
+
 }
+
 function livePage(){
+
   const sessions=array('sessions'),games=array('games'),samples=array('streamHistory'),live=state.cache.live;
+
   const chosen=state.selectedStream&&sessions.some(x=>x.stream_id===state.selectedStream)?state.selectedStream:sessions[0]?.stream_id;
+
   state.selectedStream=chosen||'';
+
   const active=sessions.find(x=>x.stream_id===chosen);
+
   const sample=samples.filter(x=>x.stream_id===chosen);
+
   const peak=sessions.reduce((mx,x)=>Math.max(mx,number(x.peak_viewers)),0);
+
   const categories=active?.games_label||'Sin categoría';
+
   const cards=active?`<div class="metric-grid joy-session-metrics">${metric('Media observada',fmt(number(active.average_viewers)),'◎')}${metric('Pico observado',fmt(number(active.peak_viewers)),'↑')}${metric('Mínimo observado',fmt(number(active.min_viewers)),'↓')}${metric('Duración observada',joyDuration(active.observed_minutes),'◷')}</div>`:'';
+
   const detail=active?`<div class="joy-detail-info"><div><span>Inicio en Twitch</span><strong>${esc(date(active.started_at))}</strong></div><div><span>Primera muestra</span><strong>${esc(date(active.first_sample))}</strong></div><div><span>Última muestra</span><strong>${esc(date(active.last_sample))}</strong></div><div><span>Categoría(s)</span><strong>${esc(categories)}</strong></div><div><span>Muestras</span><strong>${fmt(number(active.measurements))}</strong></div><div><span>ID del directo</span><strong><code>${esc(active.stream_id)}</code></strong></div></div>`:empty('No hay directos guardados todavía.');
+
   return head('Directos y audiencia','Sesiones individuales, evolución horaria y comparación entre emisiones.')
+
     +errorFor(['sessions','games','streamHistory','live'])
+
     +`<div class="notice ${live?.is_live?'success':''}">${live?.is_live?`🔴 Ahora en directo · ${esc(live.stream?.game_name||'Sin categoría')} · ${fmt(number(live.stream?.viewer_count))} espectadores`:'⚫ Canal offline o sin emisión activa. El monitor guardará muestras cuando estés transmitiendo.'}</div>`
+
     +`<div class="metric-grid">${metric('Directos monitorizados',fmt(sessions.length),'◉')}${metric('Pico observado',sessions.length?fmt(peak):'—','↑')}${metric('Muestras recogidas',fmt(samples.length),'◎')}${metric('Juegos registrados',fmt(games.length),'♧')}</div>`
+
     +panel('Comparativa por videojuego',bars(games,x=>x.game_name,x=>number(x.average_viewers)),'<span class="pill">MEDIA DE MUESTRAS</span>')
+
     +panel('Ficha del directo',`<div class="toolbar"><label for="stream-choice">Seleccionar emisión</label><select id="stream-choice">${sessions.map(x=>`<option value="${esc(x.stream_id)}" ${x.stream_id===chosen?'selected':''}>${esc(joySessionName(x))}</option>`).join('')}</select></div>${cards}${detail}`)
+
     +panel('Evolución real de espectadores',`<div id="joy-timeline-slot">${joyViewerTimeline(sample)}</div><p class="stat-meta">Pasa el cursor por la gráfica para consultar la hora exacta y los espectadores observados. No son datos oficiales agregados de Twitch.</p>`)
+
     +panel('Comparación de dos directos',joySessionComparison(sessions))
+
     +panel('Historial de emisiones',table(['Inicio','Categoría','Media','Pico','Duración observada','Muestras','Ver detalle'],sessions.map(x=>`<tr><td>${esc(date(x.started_at))}</td><td class="trim">${esc(x.games_label)}</td><td>${fmt(number(x.average_viewers))}</td><td>${fmt(number(x.peak_viewers))}</td><td>${esc(joyDuration(x.observed_minutes))}</td><td>${fmt(number(x.measurements))}</td><td><button type="button" class="joy-select-session" data-stream-id="${esc(x.stream_id)}">Ver ficha</button></td></tr>`)));
+
 }
+
 function joyBindLiveFeatures(){
+
   joyBindTimeline();
+
   const cmp=view('joy-compare-choice');
+
   if(cmp)cmp.addEventListener('change',e=>{state.compareStream=e.target.value;render()});
+
   document.querySelectorAll('.joy-select-session').forEach(btn=>btn.addEventListener('click',()=>{
+
     state.selectedStream=btn.dataset.streamId;
+
     render();
+
     const target=view('stream-choice');
+
     target?.scrollIntoView({block:'center',behavior:'smooth'});
+
   }));
+
 }
+
+
 
 // Paso 24: graficas independientes para Comunidad. No modifica el backend.
+
 function communityChart(history, key, label) {
+
   const p = list(history)
+
     .filter(r => r && r.captured_at && r[key] !== null && r[key] !== undefined && r[key] !== '' && Number.isFinite(Number(r[key])) && !Number.isNaN(new Date(r.captured_at).getTime()))
+
     .map(r => ({ t: new Date(r.captured_at).getTime(), v: Number(r[key]) }))
+
     .sort((a,b) => a.t-b.t);
+
   if (!p.length) return empty(`No hay mediciones de ${label.toLowerCase()} disponibles.`);
+
   const first = p[0], last = p[p.length-1];
+
   const variation = last.v-first.v;
+
   const plus = variation>0 ? '+' : '';
+
   const allEqual = p.every(d => d.v === first.v);
+
   const minVal = Math.min(...p.map(x=>x.v));
+
   const maxVal = Math.max(...p.map(x=>x.v));
+
   // Escala ampliada para ver variaciones pequeñas sin perder los valores reales del eje.
+
   const pad = Math.max(1, Math.ceil((maxVal-minVal)*0.20));
+
   const yMin = Math.max(0, Math.floor(minVal-pad));
+
   const yMax = Math.max(yMin+2, Math.ceil(maxVal+pad));
+
   const W=800, H=290, L=54, R=20, T=20, B=48;
+
   const pw=W-L-R, ph=H-T-B;
+
   const tMin=first.t, tMax=last.t;
+
   const xx=t => L + (tMax===tMin ? 0.5 : (t-tMin)/(tMax-tMin))*pw;
+
   const yy=v => T + (yMax-v)/(yMax-yMin)*ph;
+
   const coords=p.map(d=>({x:xx(d.t),y:yy(d.v)}));
+
   const d=coords.map((c,i)=>`${i?'L':'M'}${c.x.toFixed(2)},${c.y.toFixed(2)}`).join(' ');
+
   const fill=d+` L${coords.at(-1).x.toFixed(2)},${(T+ph).toFixed(2)} L${coords[0].x.toFixed(2)},${(T+ph).toFixed(2)} Z`;
+
   const yTicks=[...new Set(Array.from({length:5},(_,i)=>Math.round(yMin+(yMax-yMin)*i/4)))];
+
   const yGrid=yTicks.map(v=>`<line class="cc-grid" x1="${L}" x2="${W-R}" y1="${yy(v)}" y2="${yy(v)}"/><text class="cc-tick" x="${L-10}" y="${yy(v)+4}" text-anchor="end">${fmt(v)}</text>`).join('');
+
   const fmtTick=t=>new Intl.DateTimeFormat('es-ES',{timeZone:'Europe/Madrid',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
+
   const xGrid=[0,.25,.5,.75,1].map(fr=>{
+
     const t=tMin+(tMax-tMin)*fr, x=L+pw*fr;
+
     return `<text class="cc-tick" x="${x}" y="${H-13}" text-anchor="${fr===0?'start':fr===1?'end':fr===0.25?'start':'middle'}">${esc(fmtTick(t))}</text>`;
+
   }).join('');
+
   const gradientId='cc-grad-'+key;
+
   const circles=coords.map((c,i)=>`<circle class="cc-point" cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="5" tabindex="0" role="img" aria-label="${esc(fmtTick(p[i].t))}: ${fmt(p[i].v)} ${esc(label.toLowerCase())}" data-cc-date="${esc(fmtTick(p[i].t))}" data-cc-value="${esc(fmt(p[i].v))}"><title>${esc(fmtTick(p[i].t))}: ${fmt(p[i].v)} ${esc(label.toLowerCase())}</title></circle>`).join('');
+
   const legend = allEqual ? `Sin cambios en las ${p.length} mediciones` : `${p.length} mediciones · variación neta ${plus}${fmt(variation)}`;
+
   return `<div class="cc-card">
+
     <div class="cc-summary"><div><span class="cc-summary-label">Valor actual</span><strong>${fmt(last.v)}</strong></div><div><span class="cc-summary-label">Cambio registrado</span><strong class="${variation>0?'cc-positive':variation<0?'cc-negative':''}">${plus}${fmt(variation)}</strong></div></div>
+
     <div class="cc-plot"><svg class="cc-svg" viewBox="0 0 ${W} ${H}" aria-label="Evolución de ${esc(label.toLowerCase())}; ${esc(legend)}" role="group"><defs><linearGradient id="${gradientId}" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#a985ff" stop-opacity=".28"/><stop offset="100%" stop-color="#a985ff" stop-opacity=".01"/></linearGradient></defs>${yGrid}<path d="${fill}" fill="url(#${gradientId})"/><path class="cc-line" d="${d}"/>${circles}${xGrid}</svg><div class="cc-tooltip" hidden></div></div>
+
     <div class="cc-foot">${esc(legend)}. <span>Escala vertical ampliada para mostrar diferencias pequeñas.</span></div>
+
   </div>`;
+
 }
+
 function bindCommunityCharts(){
+
   document.querySelectorAll('.cc-plot').forEach(plot=>{
+
     const tip=plot.querySelector('.cc-tooltip');
+
     if(!tip)return;
+
     const show=(point)=>{
+
       tip.textContent=`${point.dataset.ccDate} · ${point.dataset.ccValue}`;
+
       tip.hidden=false;
+
       const rect=plot.getBoundingClientRect();
+
       const pr=point.getBoundingClientRect();
+
       const center=pr.left+pr.width/2-rect.left;
+
       tip.style.left=`${Math.min(Math.max(center,85),Math.max(85,rect.width-85))}px`;
+
       tip.style.top=`${Math.max(0,pr.top-rect.top-44)}px`;
+
     };
+
     plot.querySelectorAll('.cc-point').forEach(point=>{
+
       point.addEventListener('mouseenter',()=>show(point));
+
       point.addEventListener('focus',()=>show(point));
+
       point.addEventListener('mouseleave',()=>{tip.hidden=true});
+
       point.addEventListener('blur',()=>{tip.hidden=true});
+
     });
+
   });
+
 }
+
 function communityPage(){const history=array('community').sort((a,b)=>new Date(a.captured_at)-new Date(b.captured_at));const first=history[0],last=history.at(-1);const change=first&&last?number(last.followers)-number(first.followers):null;return head('Tu comunidad','Seguidores, suscriptores y evolución del canal.')+errorFor(['community'])+`<div class="metric-grid">${metric('Seguidores',last?fmt(number(last.followers)):'—','♧','Última medición')}${metric('Variación neta',change===null?'—':`${change>=0?'+':''}${fmt(change)}`,'↗','Desde la primera muestra')}${metric('Suscriptores',last?.subscribers!=null?fmt(number(last.subscribers)):'No disp.','♥','Solo si Twitch permite consultarlos')}${metric('Puntos de suscripción',last?.subscription_points!=null?fmt(number(last.subscription_points)):'—','✧')}</div><div class="cards-equal">${panel('Evolución de seguidores',communityChart(history,'followers','Seguidores'))}${panel('Evolución de suscriptores',communityChart(history,'subscribers','Suscriptores'))}</div><div class="notice">La variación es neta entre mediciones almacenadas, no el número bruto de nuevos seguidores. Un valor de suscriptores no disponible no significa cero.</div><div class="toolbar"><button class="btn btn-primary" id="channel-sync-btn">⟳ Actualizar comunidad ahora</button></div>${panel('Historial de comunidad',table(['Fecha','Seguidores','Suscriptores','Puntos'],[...history].reverse().slice(0,60).map(x=>`<tr><td>${date(x.captured_at)}</td><td>${fmt(number(x.followers))}</td><td>${x.subscribers==null?'No disponible':fmt(number(x.subscribers))}</td><td>${x.subscription_points==null?'—':fmt(number(x.subscription_points))}</td></tr>`)))}`}
+
 function adsPage(){const a=state.cache.ads||{};const d=a.schedule||{};const stamp=n=>n?date(new Date(n*1000).toISOString()):'No programado';return head('Publicidad de Twitch','Programación publicitaria actual, cuando Twitch la proporciona.')+errorFor(['ads'])+`<div class="metric-grid">${metric('Último anuncio',a.available?stamp(d.last_ad_at):'—','◷')}${metric('Siguiente anuncio',a.available?stamp(d.next_ad_at):'—','▸')}${metric('Duración próxima pausa',a.available&&d.next_duration_seconds?d.next_duration_seconds+' s':'—','⏳')}${metric('Estado del acceso',a.available?'Disponible':'No disponible','▣','Permiso de Twitch')}</div>${panel('Estado publicitario',a.available?`<p>Sin anuncios previos al directo restantes: ${fmt(number(d.preroll_free_time))} segundos.</p><p>Posposiciones disponibles: ${fmt(number(d.snooze_count))}.</p>`:`<div class="notice">${esc(a.reason||'No se ha podido consultar la programación publicitaria.')}</div>`)}<div class="notice">Esta sección muestra la programación disponible en Twitch; no registra pausas históricas ni ingresos por anuncios.</div>`}
+
 function iaPage(){return head('Asistente de inteligencia artificial','Consulta tus estadísticas mediante Qwen y Ollama, completamente en local.','JOY INTELLIGENCE')+`<section class="panel chat-container"><div class="panel-header"><h2>✦ JoyStream AI Assistant</h2><span class="pill green">OLLAMA LOCAL</span></div><div class="notice">El asistente analiza datos disponibles en PostgreSQL. Si faltan mediciones de directos, puede analizar clips y VOD sin inventar estadísticas.</div><div class="suggestions"><button class="suggestion" data-question="¿Cuál es mi clip más visto?">Mejor clip</button><button class="suggestion" data-question="Resume mis estadísticas de Twitch">Resumen del canal</button><button class="suggestion" data-question="¿Qué debería probar en mi siguiente directo?">Ideas para el próximo directo</button></div><div class="chat-thread" id="chat-thread">${state.messages.length?state.messages.map(x=>`<div class="chat-bubble ${x.role==='user'?'user':'assistant'}"><span class="chat-role">${x.role==='user'?'TÚ':'JOY AI'}</span>${esc(x.content)}${x.meta?`<div class="stat-meta">${esc(x.meta)}</div>`:''}</div>`).join(''):`<div class="empty"><strong>Tu analista está listo</strong>Haz una pregunta sobre tus clips, VOD o directos.</div>`}</div><form class="chat-form" id="chat-form"><input name="question" maxlength="500" minlength="5" required placeholder="Pregunta algo sobre tus estadísticas..." autocomplete="off" /><button class="btn btn-primary" id="chat-send" type="submit">Enviar ↗</button></form><p class="stat-meta">Las respuestas pueden contener errores: comprueba las cifras importantes frente a los gráficos o la base de datos.</p></section>`}
+
 async function checkBackend(){try{await api('/health',{timeout:5000});$('#backend-dot').className='status-light ok';$('#backend-label').textContent='FastAPI conectado'}catch{$('#backend-dot').className='status-light bad';$('#backend-label').textContent='FastAPI no disponible'}}
-function systemPage(){return head('Estado del sistema','Diagnóstico básico de los servicios de JoyStream AI.')+`<div class="system-list">${[['FastAPI','http://localhost:8000/health','Backend principal'],['Streamlit (anterior)','http://localhost:8501','Interfaz antigua disponible'],['Twitch','https://www.twitch.tv/joysantalola67','Canal conectado'],['Ollama','Contenedor local','Motor de IA sin API de pago']].map(x=>`<div class="system-row"><div><b>${esc(x[0])}</b><small>${esc(x[2])}</small></div><span class="pill">${esc(x[1].startsWith('http')?'ENLACE':'LOCAL')}</span></div>`).join('')}</div><div class="notice">Para ver el estado real de todos los contenedores, ejecuta en WSL: <code>docker compose ps</code>. Si falla un endpoint, revisa <code>docker compose logs --tail=60 backend</code>.</div>${panel('Rutas de la API',table(['Endpoint','Función'],[['/health','Salud del backend'],['/db/clips','Clips almacenados'],['/db/videos','VOD almacenados'],['/analytics/sessions','Análisis por sesión'],['/analytics/games','Comparativa por juego'],['/channel/history','Histórico de comunidad'],['/ai/analyze','Asistente local']].map(x=>`<tr><td><code>${esc(x[0])}</code></td><td>${esc(x[1])}</td></tr>`)))}`}
-function render(){const page=state.page;$('#crumb').textContent=(PATHS[page]||'RESUMEN').toUpperCase();document.querySelectorAll('.nav-item').forEach(btn=>btn.classList.toggle('active',btn.dataset.page===page));root.innerHTML=({resumen:summarize,clips:clipsPage,vod:vodPage,directos:livePage,comunidad:communityPage,ia:iaPage,sistema:systemPage,anuncios:adsPage}[page]||summarize)();bindPage();bindCommunityCharts();if(page==='ia'){$('#chat-thread').scrollTop=$('#chat-thread').scrollHeight}}
+
+function systemPage(){return head('Estado del sistema','Diagnóstico básico de los servicios de JoyStream AI.')+`<div class="system-list">${[['FastAPI','http\://localhost:8000/health','Backend principal'],['Streamlit (anterior)','http\://localhost:8501','Interfaz antigua disponible'],['Twitch','https\://www.twitch.tv/joysantalola67','Canal conectado'],['Ollama','Contenedor local','Motor de IA sin API de pago']].map(x=>`<div class="system-row"><div><b>${esc(x[0])}</b><small>${esc(x[2])}</small></div><span class="pill">${esc(x[1].startsWith('http')?'ENLACE':'LOCAL')}</span></div>`).join('')}</div><div class="notice">Para ver el estado real de todos los contenedores, ejecuta en WSL: <code>docker compose ps</code>. Si falla un endpoint, revisa <code>docker compose logs --tail=60 backend</code>.</div>${panel('Rutas de la API',table(['Endpoint','Función'],[['/health','Salud del backend'],['/db/clips','Clips almacenados'],['/db/videos','VOD almacenados'],['/analytics/sessions','Análisis por sesión'],['/analytics/games','Comparativa por juego'],['/channel/history','Histórico de comunidad'],['/ai/analyze','Asistente local']].map(x=>`<tr><td><code>${esc(x[0])}</code></td><td>${esc(x[1])}</td></tr>`)))}`}
+
+function render(){const page=state.page;$('#crumb').textContent=(PATHS[page]||'RESUMEN').toUpperCase();document.querySelectorAll('.nav-item').forEach(btn=>btn.classList.toggle('active',btn.dataset.page===page));root.innerHTML=({resumen:summarize,clips:clipsPage,vod:vodPage,directos:livePage,comunidad:communityPage,ia:(window.joyAIPage||iaPage),sistema:systemPage,anuncios:adsPage}[page]||summarize)();bindPage();bindCommunityCharts();if(page==='ia'){$('#chat-thread').scrollTop=$('#chat-thread').scrollHeight}}
+
 function navigate(page){state.page=PATHS[page]?page:'resumen';history.replaceState(null,'','#'+state.page);$('#sidebar').classList.remove('open');$('#overlay').hidden=true;render();window.scrollTo({top:0,behavior:'instant'})}
-function bindPage(){joyBindLiveFeatures();if(view('clip-choice'))view('clip-choice').addEventListener('change',e=>{state.selectedClip=e.target.value;render()});if(view('stream-choice'))view('stream-choice').addEventListener('change',e=>{state.selectedStream=e.target.value;render()});if(view('date-filter'))view('date-filter').addEventListener('change',e=>{state.dateFilter=e.target.value;render()});if(view('vod-search'))view('vod-search').addEventListener('input',e=>{state.vodSearch=e.target.value;const pos=e.target.selectionStart;render();const el=view('vod-search');if(el){el.focus();el.setSelectionRange(pos,pos)}});if(view('clip-filter'))view('clip-filter').addEventListener('change',e=>{state.clipFilter=e.target.value;render()});if(view('clip-search'))view('clip-search').addEventListener('change',e=>{state.clipSearch=e.target.value;const pos=e.target.selectionStart;render();const el=view('clip-search');if(el){el.focus();el.setSelectionRange(pos,pos)}});if(view('channel-sync-btn'))view('channel-sync-btn').addEventListener('click',async e=>{e.target.disabled=true;try{await api('/channel/sync',{method:'POST',timeout:45000});toast('Comunidad actualizada correctamente');await refresh()}catch(err){toast('Error sincronizando comunidad: '+err.message)}finally{e.target.disabled=false}});if(view('chat-form'))view('chat-form').addEventListener('submit',sendChat);document.querySelectorAll('[data-question]').forEach(btn=>btn.addEventListener('click',()=>{view('chat-form').elements.question.value=btn.dataset.question;view('chat-form').requestSubmit()}))}
+
+function bindPage(){joyBindLiveFeatures();if(view('clip-choice'))view('clip-choice').addEventListener('change',e=>{state.selectedClip=e.target.value;render()});if(view('stream-choice'))view('stream-choice').addEventListener('change',e=>{state.selectedStream=e.target.value;render()});if(view('date-filter'))view('date-filter').addEventListener('change',e=>{state.dateFilter=e.target.value;render()});if(view('vod-search'))view('vod-search').addEventListener('input',e=>{state.vodSearch=e.target.value;const pos=e.target.selectionStart;render();const el=view('vod-search');if(el){el.focus();el.setSelectionRange(pos,pos)}});if(view('clip-filter'))view('clip-filter').addEventListener('change',e=>{state.clipFilter=e.target.value;render()});if(view('clip-search'))view('clip-search').addEventListener('change',e=>{state.clipSearch=e.target.value;const pos=e.target.selectionStart;render();const el=view('clip-search');if(el){el.focus();el.setSelectionRange(pos,pos)}});if(view('channel-sync-btn'))view('channel-sync-btn').addEventListener('click',async e=>{e.target.disabled=true;try{await api('/channel/sync',{method:'POST',timeout:45000});toast('Comunidad actualizada correctamente');await refresh()}catch(err){toast('Error sincronizando comunidad: '+err.message)}finally{e.target.disabled=false}});if(view('chat-form'))view('chat-form').addEventListener('submit',window.joyAISendChat||sendChat);document.querySelectorAll('[data-question]').forEach(btn=>btn.addEventListener('click',()=>{view('chat-form').elements.question.value=btn.dataset.question;view('chat-form').requestSubmit()}))}
+
 async function sendChat(e){e.preventDefault();const input=e.currentTarget.elements.question,question=input.value.trim();if(question.length<5)return;state.messages.push({role:'user',content:question});input.value='';render();const btn=view('chat-send');btn.disabled=true;btn.textContent='Pensando...';try{const result=await api('/ai/analyze',{method:'POST',data:{question},timeout:250000});const meta=result.model?`Modelo: ${result.model} · Clips: ${result.clips_analyzed??'—'} · VOD: ${result.videos_analyzed??'—'} · Directos: ${result.sessions_analyzed??'—'}`:'';state.messages.push({role:'assistant',content:result.answer||'Sin respuesta del modelo.',meta})}catch(err){state.messages.push({role:'assistant',content:'No se pudo completar la consulta: '+err.message})}render()}
+
 document.querySelectorAll('[data-page]').forEach(btn=>btn.addEventListener('click',()=>navigate(btn.dataset.page)));
+
 $('#reload-btn').addEventListener('click',async e=>{e.target.disabled=true;toast('Actualizando desde FastAPI...');await refresh();e.target.disabled=false});
-$('#sync-btn').addEventListener('click',async e=>{e.target.disabled=true;toast('Sincronizando Twitch...');try{const data=await api('/sync',{method:'POST',timeout:160000});toast(`Sincronizados ${data.videos_processed??0} VOD y ${data.clips_processed??0} clips`);await refresh()}catch(err){toast('Error al sincronizar: '+err.message)}finally{e.target.disabled=false}});
+
+$('#sync-btn').addEventListener('click', async e => {
+
+  const button = e.currentTarget;
+
+  button.disabled = true;
+
+  const originalLabel = button.textContent;
+
+  const results = [];
+
+  const problems = [];
+
+
+
+  try {
+
+    button.textContent = 'Sincronizando...';
+
+    toast('Sincronizando clips y VOD...');
+
+
+
+    try {
+
+      const content = await api('/sync', {method: 'POST', timeout: 160000});
+
+      results.push(`Clips/VOD: sincronización completada (${content.clips_processed ?? '?'} clips, ${content.videos_processed ?? '?'} VOD)`);
+
+    } catch (error) {
+
+      problems.push('Clips/VOD: ' + error.message);
+
+    }
+
+
+
+    toast('Actualizando seguidores y suscriptores...');
+
+    try {
+
+      const community = await api('/channel/sync', {method: 'POST', timeout: 45000});
+
+      const subs = community.subscribers == null ? 'no disponibles' : community.subscribers;
+
+      results.push(`Comunidad: ${community.followers ?? '?'} seguidores, ${subs} suscriptores`);
+
+    } catch (error) {
+
+      problems.push('Comunidad: ' + error.message);
+
+    }
+
+
+
+    await refresh();
+
+
+
+    if (problems.length) {
+
+      toast('Sincronización parcial. ' + problems.join(' | '));
+
+      console.warn('JoyStream AI: incidencias al sincronizar', problems);
+
+    } else {
+
+      toast('Twitch sincronizado: clips, VOD y comunidad actualizados.');
+
+    }
+
+    console.info('JoyStream AI: resumen de sincronización', results);
+
+  } finally {
+
+    button.disabled = false;
+
+    button.textContent = originalLabel;
+
+  }
+
+});
+
 $('#mobile-menu').addEventListener('click',()=>{$('#sidebar').classList.add('open');$('#overlay').hidden=false});$('#overlay').addEventListener('click',()=>{$('#sidebar').classList.remove('open');$('#overlay').hidden=true});
+
 window.addEventListener('hashchange',()=>navigate(location.hash.slice(1)));
+
 state.page=PATHS[location.hash.slice(1)]?location.hash.slice(1):'resumen';refresh();
 
+
+
 // Preferencia visual local: solo cambia el espaciado de tablas.
+
 const densityButton=document.getElementById('density-btn');
+
 if(densityButton){
+
  const compact=localStorage.getItem('joy_density')==='compact';
+
  document.body.classList.toggle('compact',compact);
+
  densityButton.setAttribute('aria-pressed',String(compact));
+
  densityButton.addEventListener('click',()=>{
+
   const next=!document.body.classList.contains('compact');
+
   document.body.classList.toggle('compact',next);
+
   densityButton.setAttribute('aria-pressed',String(next));
+
   localStorage.setItem('joy_density',next?'compact':'normal');
+
  });
+
 }

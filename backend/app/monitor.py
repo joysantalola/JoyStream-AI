@@ -6,6 +6,7 @@ import time
 from fastapi import HTTPException
 
 from app.database import create_tables
+from app.startup import wait_for_database  # JOYSTREAM_26A
 from app.storage import save_stream_sample
 from app.twitch import (
     get_access_token,
@@ -25,7 +26,7 @@ async def main():
             "El intervalo debe ser de al menos 30 segundos"
         )
 
-    create_tables()
+    wait_for_database(create_tables)
 
     print("JoyStream AI Monitor iniciado", flush=True)
     print(

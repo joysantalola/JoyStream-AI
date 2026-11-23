@@ -30,6 +30,15 @@ signal.signal(signal.SIGTERM, stop_scheduler)
 signal.signal(signal.SIGINT, stop_scheduler)
 
 
+# JOYSTREAM_26D_SCHEDULER_TOKEN
+# No registrar ni imprimir este token en los logs.
+def _internal_headers():
+    token = os.getenv("JOY_INTERNAL_SYNC_TOKEN", "")
+    if len(token) < 64:
+        raise RuntimeError("Falta JOY_INTERNAL_SYNC_TOKEN; sincronización automática desactivada")
+    return {"X-JoyStream-Internal-Token": token}
+
+
 def sync_twitch():
     """Solicita una sincronización al backend."""
 
@@ -43,6 +52,7 @@ def sync_twitch():
     try:
         response = requests.post(
             f"{API_URL}/sync",
+            headers=_internal_headers(),
             timeout=90
         )
 
@@ -61,6 +71,7 @@ def sync_twitch():
         # Sincronización de seguidores y suscriptores
         channel_response = requests.post(
             f"{API_URL}/channel/sync",
+            headers=_internal_headers(),
             timeout=40
         )
 
