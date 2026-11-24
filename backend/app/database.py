@@ -17,6 +17,7 @@ from sqlalchemy import (
     Boolean
 )
 from sqlalchemy.engine import URL
+from sqlalchemy import text
 
 
 # Configuración de la conexión
@@ -182,9 +183,22 @@ channel_metrics_table = Table(
         DateTime(timezone=True),
         nullable=False
     ),
+    # JOYSTREAM_V1_1_LATEST_FOLLOWER
+    Column("latest_follower_name", Text, nullable=True),
+    Column("latest_follower_login", Text, nullable=True),
+    Column("latest_follower_at", DateTime(timezone=True), nullable=True),
 )
 
 
 def create_tables():
-    """Crea las tablas si todavía no existen."""
+    # Crea las tablas y aplica migraciones aditivas idempotentes.
     metadata.create_all(engine)
+    # JOYSTREAM_V1_1_LATEST_FOLLOWER
+    # create_all no añade columnas a tablas ya existentes.
+    with engine.begin() as connection:
+        connection.execute(text(
+            "ALTER TABLE channel_metrics "
+            "ADD COLUMN IF NOT EXISTS latest_follower_name TEXT, "
+            "ADD COLUMN IF NOT EXISTS latest_follower_login TEXT, "
+            "ADD COLUMN IF NOT EXISTS latest_follower_at TIMESTAMPTZ"
+        ))

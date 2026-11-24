@@ -17,7 +17,8 @@ from app.twitch_auth import (
 
 
 async def fetch_channel_metrics():
-    """Obtiene seguidores y suscripciones."""
+    """Obtiene seguidores, suscripciones y el último seguidor."""
+    # JOYSTREAM_V1_1_LATEST_FOLLOWER
 
     token = await get_user_access_token()
 
@@ -32,11 +33,15 @@ async def fetch_channel_metrics():
             followers_response = await client.get(
                 "https://api.twitch.tv/helix/channels/followers",
                 headers=headers,
-                params={"broadcaster_id": CHANNEL_ID}
+                params={"broadcaster_id": CHANNEL_ID, "first": 1}
             )
             followers_response.raise_for_status()
 
-            followers = followers_response.json()["total"]
+            followers_payload = followers_response.json()
+            followers = followers_payload["total"]
+            follower_rows = followers_payload.get("data") or []
+            latest_follower = follower_rows[0] if follower_rows else None
+            # JOYSTREAM_V1_1_LATEST_FOLLOWER
 
         except (httpx.HTTPError, KeyError, ValueError):
             raise HTTPException(
@@ -73,6 +78,7 @@ async def fetch_channel_metrics():
         "subscribers": subscribers,
         "subscription_points": subscription_points,
         "subscription_status": subscription_status,
+        "latest_follower": latest_follower,
         "captured_at": datetime.now(timezone.utc)
     }
 
@@ -86,6 +92,15 @@ def save_channel_metrics(metrics):
                 followers=metrics["followers"],
                 subscribers=metrics["subscribers"],
                 subscription_points=metrics["subscription_points"],
+                latest_follower_name=(metrics.get("latest_follower") or {}).get("user_name"),
+                latest_follower_login=(metrics.get("latest_follower") or {}).get("user_login"),
+                latest_follower_at=(
+                    datetime.fromisoformat(
+                        metrics["latest_follower"]["followed_at"].replace("Z", "+00:00")
+                    )
+                    if (metrics.get("latest_follower") or {}).get("followed_at")
+                    else None
+                ),
                 captured_at=metrics["captured_at"]
             )
         )

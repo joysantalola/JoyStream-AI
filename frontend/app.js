@@ -70,8 +70,119 @@ function bars(items,labelFn,valueFn){if(!items.length)return empty('Sin resultad
 
 function lineChart(points,{key='view_count',dateKey='captured_at'}={}){const p=list(points).filter(x=>x?.[dateKey]&&Number.isFinite(Number(x?.[key]))).sort((a,b)=>new Date(a[dateKey])-new Date(b[dateKey]));if(!p.length)return empty('Todavía no hay mediciones para mostrar.');const W=800,H=250,left=48,right=20,top=18,bottom=36,iw=W-left-right,ih=H-top-bottom,min=0,max=Math.max(1,...p.map(x=>number(x[key]))),c=p.map((x,i)=>({x:left+(p.length===1?.5:i/(p.length-1))*iw,y:top+ih-number(x[key])/max*ih}));const path=c.map((pt,i)=>`${i?'L':'M'} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(' ');const area=path+` L ${c[c.length-1].x} ${top+ih} L ${c[0].x} ${top+ih} Z`;const grid=[0,.25,.5,.75,1].map(f=>`<line class="chart-grid" x1="${left}" y1="${top+ih*(1-f)}" x2="${W-right}" y2="${top+ih*(1-f)}"/><text class="chart-label" x="${left-8}" y="${top+ih*(1-f)+4}" text-anchor="end">${fmt(Math.round(max*f))}</text>`).join('');const dots=c.length<55?c.map((pt,i)=>`<circle class="dot" cx="${pt.x}" cy="${pt.y}" r="4"><title>${esc(date(p[i][dateKey]))}: ${fmt(number(p[i][key]))}</title></circle>`).join(''):'';return `<svg class="svg-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico histórico de visualizaciones"><defs><linearGradient id="chartfade" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#956cff" stop-opacity=".33"/><stop offset="100%" stop-color="#956cff" stop-opacity="0"/></linearGradient></defs>${grid}<path class="chart-fill" d="${area}"/><path class="chart-line" d="${path}"/>${dots}<text class="chart-label" x="${left}" y="${H-8}">${esc(shortDate(p[0][dateKey]))}</text><text class="chart-label" x="${W-right}" y="${H-8}" text-anchor="end">${esc(shortDate(p[p.length-1][dateKey]))}</text></svg>`}
 
-function summarize(){const clips=array('clips'),videos=array('videos'),sessions=array('sessions'),community=array('community');const latest=community.at(-1);const top=[...clips].sort((a,b)=>number(b.view_count)-number(a.view_count)).slice(0,5);const games=[...new Set(clips.map(clipGame).filter(g=>g!=='Categoría desconocida'))];return head('Tu canal, en perspectiva','Estadísticas centralizadas por juego y evolución del contenido.')+profileBar()+errorFor(['clips','videos','community','catalog'])+`<div class="metric-grid">${metric('Clips guardados',fmt(clips.length),'▣')}${metric('Vistas de clips',fmt(total(clips,'view_count')),'◉')}${metric('VOD guardados',fmt(videos.length),'▸')}${metric('Categorías de clips',fmt(games.length),'🎮')}</div><div class="cards-2">${panel('Clips más vistos',bars(top,x=>`${clipGame(x)} · ${x.title}`,x=>number(x.view_count)))}${panel('Comunidad',`<div class="detail-cols"><div class="detail-box"><span>Seguidores</span><strong>${latest?fmt(number(latest.followers)):'—'}</strong></div><div class="detail-box"><span>Suscriptores</span><strong>${latest?.subscribers!=null?fmt(number(latest.subscribers)):'—'}</strong></div><div class="detail-box"><span>Directos monitorizados</span><strong>${fmt(sessions.length)}</strong></div></div><p class="stat-meta">Vistas de clips y VOD no equivalen a espectadores simultáneos.</p>`)}</div>${panel('VOD recientes y categorías',table(['Vídeo','Categorías detectadas','Evidencia','Vistas'],[...videos].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,10).map(x=>`<tr><td class="trim">${esc(x.title)}</td><td>${esc(vodGames(x))}</td><td><small>${esc(vodConfidence(x))}</small></td><td>${fmt(number(x.view_count))}</td></tr>`)))} `}
+// JOYSTREAM_V1_1_LATEST_FOLLOWER
 
+// JOYSTREAM_DASHBOARD_V11_REDESIGN
+function summarize(){
+  const clips=array('clips');
+  const videos=array('videos');
+  const sessions=array('sessions');
+  const community=array('community');
+  const latest=community.at(-1);
+  const profile=catalog().profile||{};
+  const top=[...clips].sort((a,b)=>number(b.view_count)-number(a.view_count)).slice(0,5);
+  const recentVods=[...videos].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,6);
+  const games=[...new Set(clips.map(clipGame).filter(g=>g!=='Categoría desconocida'))];
+  const followerName=latest?.latest_follower_name;
+  const followerLogin=latest?.latest_follower_login;
+  const followerAt=latest?.latest_follower_at;
+  const followerCard=followerName
+    ? `<div class="joy-v11-follower-person"><div class="joy-v11-follower-avatar">★</div><div class="joy-v11-follower-identity"><strong>${esc(followerName)}</strong><span>${followerLogin?'@'+esc(followerLogin):'Nuevo seguidor'}</span></div><span class="joy-v11-new-pill">ÚLTIMO</span></div><p class="joy-v11-follower-date">${followerAt?'Te siguió el '+date(followerAt):'Último seguidor registrado'}</p>`
+    : `<div class="joy-v11-empty-follower"><strong>El próximo puede ser el primero que veas aquí</strong><span>Autoriza Twitch con el permiso moderator:read:followers y ejecuta una sincronización de comunidad.</span></div>`;
+  const channelName=profile.display_name||profile.name||'Joysantalola';
+  const channelLogin=profile.broadcaster_login||profile.login||'joysantalola67';
+  const avatar=profile.profile_image_url
+    ? `<img src="${esc(profile.profile_image_url)}" alt="Avatar de ${esc(channelName)}">`
+    : `<span>J</span>`;
+  const followerCount=latest?fmt(number(latest.followers)):'—';
+  const clipViews=fmt(total(clips,'view_count'));
+  const avgClipViews=clips.length?fmt(Math.round(total(clips,'view_count')/clips.length)):'—';
+  const communityChart=community.length>1
+    ? lineChart(community,{key:'followers',dateKey:'captured_at'})
+    : `<div class="joy-v11-chart-empty">Todavía hacen falta más mediciones para mostrar la evolución de seguidores.</div>`;
+  return head('Centro de control','Tu actividad, tu comunidad y el rendimiento de tu contenido.')+
+    errorFor(['clips','videos','community','catalog'])+
+    `<section class="joy-v11-shell">
+      <div class="joy-v11-hero">
+        <div class="joy-v11-hero-content">
+          <div class="joy-v11-kicker"><span class="joy-v11-live-dot"></span> JOYSTREAM AI <span>·</span> CREATOR STUDIO</div>
+          <h2>Todo tu canal,<br><em>en un solo lugar.</em></h2>
+          <p>Hola, ${esc(channelName)}. Aquí tienes lo que está pasando en tu canal de Twitch.</p>
+          <div class="joy-v11-hero-actions">
+            <a class="joy-v11-channel-link" href="https://www.twitch.tv/${esc(channelLogin)}" target="_blank" rel="noopener noreferrer">Abrir canal en Twitch <span>↗</span></a>
+            <span class="joy-v11-local-label"><i></i> Datos privados · Procesamiento local</span>
+          </div>
+        </div>
+        <div class="joy-v11-hero-profile">
+          <div class="joy-v11-profile-ring">${avatar}</div>
+          <strong>${esc(channelName)}</strong>
+          <span>@${esc(channelLogin)}</span>
+          <small>CREATOR DASHBOARD</small>
+        </div>
+        <div class="joy-v11-hero-orb joy-v11-orb-one"></div>
+        <div class="joy-v11-hero-orb joy-v11-orb-two"></div>
+      </div>
+
+      <div class="joy-v11-section-heading">
+        <div><span class="joy-v11-section-kicker">RESUMEN DEL CANAL</span><h3>Tu actividad de un vistazo</h3></div>
+        <span class="joy-v11-updated">${esc(new Intl.DateTimeFormat('es-ES',{dateStyle:'long'}).format(new Date()))}</span>
+      </div>
+
+      <div class="joy-v11-kpis">
+        <article class="joy-v11-kpi joy-v11-kpi-primary">
+          <div class="joy-v11-kpi-top"><span>Seguidores</span><span class="joy-v11-kpi-icon">♧</span></div>
+          <strong>${followerCount}</strong><small>Comunidad registrada</small>
+        </article>
+        <article class="joy-v11-kpi">
+          <div class="joy-v11-kpi-top"><span>Clips guardados</span><span class="joy-v11-kpi-icon">▣</span></div>
+          <strong>${fmt(clips.length)}</strong><small>Biblioteca de Twitch</small>
+        </article>
+        <article class="joy-v11-kpi">
+          <div class="joy-v11-kpi-top"><span>Vistas de clips</span><span class="joy-v11-kpi-icon">◉</span></div>
+          <strong>${clipViews}</strong><small>${avgClipViews} de media por clip</small>
+        </article>
+        <article class="joy-v11-kpi">
+          <div class="joy-v11-kpi-top"><span>Vídeos / VOD</span><span class="joy-v11-kpi-icon">▶</span></div>
+          <strong>${fmt(videos.length)}</strong><small>Vídeos almacenados</small>
+        </article>
+        <article class="joy-v11-kpi">
+          <div class="joy-v11-kpi-top"><span>Directos</span><span class="joy-v11-kpi-icon">◷</span></div>
+          <strong>${fmt(sessions.length)}</strong><small>Sesiones monitorizadas</small>
+        </article>
+      </div>
+
+      <div class="joy-v11-content-grid">
+        <section class="joy-v11-card joy-v11-follower-card">
+          <div class="joy-v11-card-heading"><div><span class="joy-v11-section-kicker">COMUNIDAD</span><h3>Último seguidor</h3></div><span class="joy-v11-card-symbol">♧</span></div>
+          <div class="joy-v11-follower-content">${followerCard}</div>
+          <div class="joy-v11-card-foot">La actividad más reciente registrada en tu comunidad.</div>
+        </section>
+        <section class="joy-v11-card joy-v11-community-card">
+          <div class="joy-v11-card-heading"><div><span class="joy-v11-section-kicker">CRECIMIENTO</span><h3>Tu comunidad</h3></div><span class="joy-v11-card-symbol">↗</span></div>
+          <div class="joy-v11-community-stats">
+            <div><strong>${followerCount}</strong><span>Seguidores</span></div>
+            <div><strong>${latest?.subscribers!=null?fmt(number(latest.subscribers)):'—'}</strong><span>Suscriptores</span></div>
+            <div><strong>${fmt(games.length)}</strong><span>Juegos</span></div>
+          </div>
+          <p class="joy-v11-muted-note">Los datos de suscriptores dependen de los permisos disponibles en Twitch.</p>
+        </section>
+        <section class="joy-v11-card joy-v11-growth-card">
+          <div class="joy-v11-card-heading"><div><span class="joy-v11-section-kicker">EVOLUCIÓN</span><h3>Crecimiento de seguidores</h3></div><span class="joy-v11-card-symbol">⌁</span></div>
+          <div class="joy-v11-chart-wrap">${communityChart}</div>
+        </section>
+        <section class="joy-v11-card joy-v11-top-clips-card">
+          <div class="joy-v11-card-heading"><div><span class="joy-v11-section-kicker">CONTENIDO DESTACADO</span><h3>Tus clips más vistos</h3></div><span class="joy-v11-card-symbol">✦</span></div>
+          ${top.length?bars(top,x=>`${clipGame(x)} · ${x.title}`,x=>number(x.view_count)):`<div class="joy-v11-chart-empty">Todavía no hay clips sincronizados.</div>`}
+        </section>
+      </div>
+
+      <section class="joy-v11-card joy-v11-vods-card">
+        <div class="joy-v11-card-heading"><div><span class="joy-v11-section-kicker">CONTENIDO RECIENTE</span><h3>Últimos directos y VOD</h3></div><span class="joy-v11-card-symbol">▶</span></div>
+        ${recentVods.length?table(['Vídeo','Categoría','Visualizaciones','Fecha'],recentVods.map(x=>`<tr><td class="trim">${esc(x.title)}</td><td>${esc(vodGames(x))}</td><td>${fmt(number(x.view_count))}</td><td>${date(x.created_at)}</td></tr>`)):`<div class="joy-v11-chart-empty">Todavía no hay VOD sincronizados.</div>`}
+      </section>
+      <p class="joy-v11-disclaimer">JoyStream AI reúne tus datos de Twitch y los analiza localmente. Las visualizaciones de clips y VOD no representan espectadores simultáneos.</p>
+    </section>`;
+}
 function clipsPage(){const clips=array('clips'),history=array('clipHistory'),growth=array('growth');const games=[...new Set(clips.map(clipGame))].sort();const filtered=clips.filter(x=>withinPeriod(x)&&(!state.clipFilter||clipGame(x)===state.clipFilter)&&(!state.clipSearch||text(x.title).toLowerCase().includes(state.clipSearch.toLowerCase())));const best=[...clips].sort((a,b)=>number(b.view_count)-number(a.view_count)).slice(0,10);const chosen=state.selectedClip&&clips.some(x=>x.id===state.selectedClip)?state.selectedClip:best[0]?.id;state.selectedClip=chosen||'';const byGame={};for(const c of clips){const g=clipGame(c);byGame[g]=(byGame[g]||0)+number(c.view_count)}const groups=Object.entries(byGame).map(([game,views])=>({game,views})).sort((a,b)=>b.views-a.views);return head('Biblioteca de clips','Categorías oficiales de Twitch y evolución de visualizaciones.')+errorFor(['clips','catalog'])+`<div class="metric-grid">${metric('Clips',fmt(clips.length),'▣')}${metric('Visualizaciones',fmt(total(clips,'view_count')),'◉')}${metric('Juegos identificados',fmt(games.filter(x=>x!=='Categoría desconocida').length),'🎮')}${metric('Clips 100+ vistas',fmt(clips.filter(x=>number(x.view_count)>=100).length),'✦')}</div><div class="cards-2">${panel('Visualizaciones por juego',bars(groups,x=>x.game,x=>x.views))}${panel('Evolución de un clip',`<div class="toolbar"><select id="clip-choice">${clips.map(x=>`<option value="${esc(x.id)}" ${x.id===chosen?'selected':''}>${esc(x.title?.slice(0,55))}</option>`).join('')}</select></div>${lineChart(history.filter(x=>x.content_id===chosen))}`)}</div>${panel('Clips registrados',`<div class="toolbar"><input id="clip-search" placeholder="Buscar clip..." value="${esc(state.clipSearch)}">${dateToolbar()}<select id="clip-filter"><option value="">Todos los juegos</option>${games.map(g=>`<option value="${esc(g)}" ${g===state.clipFilter?'selected':''}>${esc(g)}</option>`).join('')}</select></div>${table(['Título','Juego','Fecha','Vistas','Crecimiento','Enlace'],filtered.sort((a,b)=>number(b.view_count)-number(a.view_count)).map(x=>{const growthRow=growth.find(g=>g.content_id===x.id);return `<tr><td class="trim">${esc(x.title)}</td><td>${esc(clipGame(x))}</td><td>${date(x.created_at)}</td><td>${fmt(number(x.view_count))}</td><td>${growthRow?'+'+fmt(number(growthRow.growth)):'—'}</td><td>${link(x.url)}</td></tr>`}))}`)}`}
 
 function vodPage(){const videos=array('videos');const best=[...videos].sort((a,b)=>number(b.view_count)-number(a.view_count)).slice(0,10);const classified=videos.filter(v=>vodConfidence(v)!=='Desconocido').length;const filteredVods=videos.filter(v=>withinPeriod(v)&&text(v.title).toLowerCase().includes(state.vodSearch.toLowerCase()));return head('Vídeos y VOD','Categorías observadas durante el directo o inferidas a partir de clips asociados.')+errorFor(['videos','catalog'])+`<div class="metric-grid">${metric('VOD registrados',fmt(videos.length),'▸')}${metric('Vistas acumuladas',fmt(total(videos,'view_count')),'◉')}${metric('Con categoría respaldada',fmt(classified),'🎮')}${metric('Sin categoría',fmt(videos.length-classified),'?')}</div><div class="cards-equal">${panel('VOD más vistos',bars(best.slice(0,7),x=>x.title,x=>number(x.view_count)))}${panel('Origen de categorías',`<div class="notice"><strong>Observado en directo:</strong> una o varias categorías aparecieron en muestras guardadas del stream.<br><strong>Inferido por clips:</strong> clips asociados a ese VOD indican el juego.<br><strong>Desconocido:</strong> Twitch no devuelve directamente el juego de VOD y faltan pruebas.</div>`)}</div>${panel('Biblioteca de VOD',`<div class="toolbar"><input id="vod-search" placeholder="Buscar vídeo..." aria-label="Buscar vídeo" value="${esc(state.vodSearch)}">${dateToolbar()}</div>${table(['Vídeo','Juego(s)','Fuente','Fecha','Vistas','Enlace'],filteredVods.map(v=>`<tr><td class="trim">${esc(v.title)}</td><td>${esc(vodGames(v))}</td><td><small>${esc(vodConfidence(v))}</small></td><td>${date(v.created_at)}</td><td>${fmt(number(v.view_count))}</td><td>${link(v.url)}</td></tr>`))}`)}`}
