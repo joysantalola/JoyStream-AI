@@ -93,6 +93,18 @@ services:
     restart: unless-stopped
 
 
+  # JOYSTREAM_NAGIOS
+  nagios:
+    image: manios/nagios:4.5.14
+    restart: unless-stopped
+    env_file:
+      - ./.nagios.env
+    ports:
+      - "127.0.0.1:8090:80"
+    volumes:
+      - ./monitoring/nagios/etc:/opt/nagios/etc
+      - ./monitoring/nagios/var:/opt/nagios/var
+
 volumes:
   postgres_data:
   ollama_data:

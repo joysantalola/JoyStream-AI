@@ -77,3 +77,18 @@ REFERENCIAS/
 INSTALAR_PASO*.py
 INSTRUCCIONES_PASO*.txt
 PRUEBAS_PASO*.py
+.nagios.env
+monitoring/nagios/var/
+
+# JoyStream AI - Nagios
+monitoring/nagios/var/
+monitoring/nagios/etc/htpasswd*
+monitoring/nagios/etc/resource.cfg
+monitoring/nagios/**/*.bak
+monitoring/nagios/**/*.bak.*
+monitoring/nagios/**/__pycache__/
+monitoring/nagios/**/*.pyc
+
+# Copias locales de Docker Compose
+compose*.yaml.bak*
+compose*.yml.bak*
